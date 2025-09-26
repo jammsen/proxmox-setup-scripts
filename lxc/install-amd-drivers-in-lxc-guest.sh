@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
-# Add ROCm repository
-wget -O - https://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
-echo "deb [arch=amd64] https://repo.radeon.com/rocm/apt/6.2.4 jammy main" | tee /etc/apt/sources.list.d/rocm.list
-
 apt update
-apt install -y rocm-dev rocm-libs rocm-utils --no-install-recommends
+
+# Install ROCm packages directly from Debian repositories
+apt install -y rocminfo rocm-dev hip-dev rocblas-dev rocfft-dev rocsolver-dev
+
+# Add user to required groups for GPU access
+usermod -aG video,render $USER
+
+# Verify ROCm installation
+rocminfo
+
+echo "ROCm installation complete. Please log out and back in for group changes to take effect."
+
+pause
 
 # Install AMD Container Toolkit for ROCm support
 curl -fsSL https://rocm.docs.amd.com/rocm.gpg.key | apt-key add -
