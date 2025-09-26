@@ -34,6 +34,8 @@ apt install -y nvidia-container-toolkit
 # this will modify your existing /etc/docker/daemon.json by adding relevant config
 nvidia-ctk runtime configure --runtime=docker
 
+sudo sed -i 's/^#no-cgroups = false/no-cgroups = true/' /etc/nvidia-container-runtime/config.toml
+
 # restart systemd + docker (if you don't reload systemd, it might not work)
 systemctl daemon-reload
 systemctl restart docker
