@@ -7,7 +7,7 @@ apt update
 # install nvidia drivers
 # these are the compute-only (headless) versions of the drivers
 # this makes sure we don't install any unnecessary packages (X drivers, etc)
-apt install nvidia-driver-cuda
+apt install -y nvidia-driver-cuda
 
 # disable + mask persistence service
 systemctl stop nvidia-persistenced.service
