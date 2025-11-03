@@ -42,8 +42,8 @@ auto_detect_completion() {
             fi
             ;;
         "002")
-            # Check if iGPU VRAM is configured
-            if grep -q "i915.enable_guc=3" /proc/cmdline 2>/dev/null; then
+            # Check if AMD APU iGPU VRAM is configured
+            if grep -q "amdgpu.gttsize=98304" /proc/cmdline 2>/dev/null; then
                 return 0
             fi
             ;;
@@ -60,17 +60,24 @@ auto_detect_completion() {
             fi
             ;;
         "005")
-            # Always allow re-verification
-            return 1
+            # Check if NVIDIA drivers are installed (same as 004)
+            if command -v nvidia-smi &> /dev/null; then
+                return 0
+            fi
             ;;
         "006")
             # Check if udev rules exist
-            if [ -f /etc/udev/rules.d/70-gpu.rules ]; then
+            if [ -f /etc/udev/rules.d/99-gpu-passthrough.rules ]; then
                 return 0
             fi
             ;;
         "007")
-            # Upgrade can always be run
+            # Check if system has upgradable packages
+            # If no upgradable packages, consider it "done"
+            upgradable=$(apt list --upgradable 2>/dev/null | grep -c "upgradable")
+            if [ "$upgradable" -eq 0 ]; then
+                return 0
+            fi
             return 1
             ;;
     esac
@@ -95,7 +102,18 @@ display_script() {
         "004") description="Install NVIDIA GPU drivers" ;;
         "005") description="Verify NVIDIA driver installation" ;;
         "006") description="Setup udev rules for GPU device permissions" ;;
-        "007") description="Upgrade Proxmox to latest version" ;;
+        "007") 
+            # Get upgrade information
+            local total_upgradable
+            local pve_upgradable
+            total_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "upgradable" || echo "0")
+            pve_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "pve\|proxmox" || echo "0")
+            if [ "$total_upgradable" -gt 0 ]; then
+                description="Upgrade Proxmox to latest version (${total_upgradable} packages, ${pve_upgradable} PVE-related)"
+            else
+                description="Upgrade Proxmox to latest version (system up to date)"
+            fi
+            ;;
         "010") description="Create AMD GPU-enabled LXC container (deprecated)" ;;
         "011") description="Create GPU-enabled LXC container (AMD or NVIDIA)" ;;
         *) description="$script_name" ;;
@@ -210,7 +228,18 @@ confirm_run_with_info() {
         "004") description="Install NVIDIA GPU drivers" ;;
         "005") description="Verify NVIDIA driver installation" ;;
         "006") description="Setup udev rules for GPU device permissions" ;;
-        "007") description="Upgrade Proxmox to latest version" ;;
+        "007") 
+            # Get upgrade information
+            local total_upgradable
+            local pve_upgradable
+            total_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "upgradable" || echo "0")
+            pve_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "pve\|proxmox" || echo "0")
+            if [ "$total_upgradable" -gt 0 ]; then
+                description="Upgrade Proxmox to latest version (${total_upgradable} packages, ${pve_upgradable} PVE-related)"
+            else
+                description="Upgrade Proxmox to latest version (system up to date)"
+            fi
+            ;;
         "010") description="Create AMD GPU-enabled LXC container (deprecated)" ;;
         "011") description="Create GPU-enabled LXC container (AMD or NVIDIA)" ;;
         *) description="$script_name" ;;
