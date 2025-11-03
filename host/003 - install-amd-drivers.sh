@@ -40,8 +40,5 @@ chmod +x /etc/profile.d/rocm.sh
 # shellcheck disable=SC1091
 source /etc/profile.d/rocm.sh
 
-echo ">>> Verifying ROCm installation by checking for installed tools"
-which rocm-smi rocminfo nvtop radeontop
-rocminfo | grep -i -A5 'Agent [0-9]'
-rocm-smi --showmemuse --showuse --showmeminfo all --showhw --showproductname
-echo ">>> AMD ROCm driver installation and setup completed."
+echo ">>> AMD ROCm driver installation completed."
+echo ">>> Run '005 - verify-amd-drivers.sh' to verify the installation."

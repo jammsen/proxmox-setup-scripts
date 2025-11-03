@@ -60,18 +60,24 @@ auto_detect_completion() {
             fi
             ;;
         "005")
+            # Check if AMD drivers are installed (same as 003)
+            if lsmod | grep -q amdgpu; then
+                return 0
+            fi
+            ;;
+        "006")
             # Check if NVIDIA drivers are installed (same as 004)
             if command -v nvidia-smi &> /dev/null; then
                 return 0
             fi
             ;;
-        "006")
+        "007")
             # Check if udev rules exist
             if [ -f /etc/udev/rules.d/99-gpu-passthrough.rules ]; then
                 return 0
             fi
             ;;
-        "007")
+        "008")
             # Check if system has upgradable packages
             # If no upgradable packages, consider it "done"
             upgradable=$(apt list --upgradable 2>/dev/null | grep -c "upgradable")
@@ -100,9 +106,10 @@ display_script() {
         "002") description="Setup AMD APUs iGPU VRAM allocation" ;;
         "003") description="Install AMD GPU drivers" ;;
         "004") description="Install NVIDIA GPU drivers" ;;
-        "005") description="Verify NVIDIA driver installation" ;;
-        "006") description="Setup udev rules for GPU device permissions" ;;
-        "007") 
+        "005") description="Verify AMD driver installation" ;;
+        "006") description="Verify NVIDIA driver installation" ;;
+        "007") description="Setup udev rules for GPU device permissions" ;;
+        "008") 
             # Get upgrade information
             local total_upgradable
             local pve_upgradable
@@ -234,9 +241,10 @@ confirm_run_with_info() {
         "002") description="Setup AMD APUs iGPU VRAM allocation" ;;
         "003") description="Install AMD GPU drivers" ;;
         "004") description="Install NVIDIA GPU drivers" ;;
-        "005") description="Verify NVIDIA driver installation" ;;
-        "006") description="Setup udev rules for GPU device permissions" ;;
-        "007") 
+        "005") description="Verify AMD driver installation" ;;
+        "006") description="Verify NVIDIA driver installation" ;;
+        "007") description="Setup udev rules for GPU device permissions" ;;
+        "008") 
             # Get upgrade information
             local total_upgradable
             local pve_upgradable
