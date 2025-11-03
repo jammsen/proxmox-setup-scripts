@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SCRIPT_DESC: Create GPU-enabled LXC container (AMD or NVIDIA)
+# SCRIPT_DESC: Create GPU-enabled LXC container (AMD or NVIDIA or BOTH)
 # SCRIPT_DETECT: 
 
 # Enhanced LXC GPU container creation script with automatic GPU detection

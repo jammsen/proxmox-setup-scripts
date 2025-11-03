@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SCRIPT_DESC: Install essential tools (htop, nvtop, etc.)
+# SCRIPT_DESC: Install essential tools (curl, git, gpg, htop, iperf3, lshw, mc, s-tui, unzip, wget) and setup power-management (powertop, AutoASPM)
 # SCRIPT_DETECT: command -v htop &>/dev/null && command -v nvtop &>/dev/null
 
 apt update

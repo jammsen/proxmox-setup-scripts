@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SCRIPT_DESC: Create AMD GPU-enabled LXC container (deprecated)
+# SCRIPT_DESC: Create AMD GPU-enabled LXC container (old-only-amd-version)
 # SCRIPT_DETECT: 
 
 # Prompt for container ID with default value of 100

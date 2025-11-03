@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SCRIPT_DESC: Install AMD GPU drivers
+# SCRIPT_DESC: Install AMD ROCm 7.1.X drivers
 # SCRIPT_DETECT: lsmod | grep -q amdgpu
 
 echo ">>> Adding AMD ROCm 7.1.X repository"

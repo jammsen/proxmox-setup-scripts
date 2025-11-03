@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SCRIPT_DESC: Install NVIDIA GPU drivers
+# SCRIPT_DESC: Install NVIDIA Cuda and Kernel drivers
 # SCRIPT_DETECT: command -v nvidia-smi &>/dev/null
 
 apt update
