@@ -282,6 +282,7 @@ confirm_run_with_info() {
     echo -e "${GREEN}──────────────────────────────────────${NC}"
     read -r -p "Run this script? [Y/n/q]: " choice < /dev/tty
     choice=${choice:-Y}
+    echo ""  # Add blank line after input
     
     case "$choice" in
         [Qq]|[Qq][Uu][Ii][Tt])
