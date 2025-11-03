@@ -91,6 +91,48 @@ auto_detect_completion() {
     return 1
 }
 
+# Function to get script description by number
+get_script_description() {
+    local script_num="$1"
+    
+    case "$script_num" in
+        "000") echo "(Optional) List all available GPUs and their PCI paths" ;;
+        "001") echo "Install essential tools (htop, nvtop, etc.)" ;;
+        "002") echo "Setup AMD APUs iGPU VRAM allocation" ;;
+        "003") echo "Install AMD GPU drivers" ;;
+        "004") echo "Install NVIDIA GPU drivers" ;;
+        "005") echo "Verify AMD driver installation" ;;
+        "006") echo "Verify NVIDIA driver installation" ;;
+        "007") echo "Setup udev rules for GPU device permissions" ;;
+        "008") 
+            # Get upgrade information dynamically
+            local total_upgradable
+            local pve_upgradable
+            total_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "upgradable" 2>/dev/null || echo "0")
+            pve_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "pve\|proxmox" 2>/dev/null || echo "0")
+            # Sanitize to ensure integer
+            total_upgradable=$(echo "$total_upgradable" | tr -d '\n ' 2>/dev/null || echo "0")
+            pve_upgradable=$(echo "$pve_upgradable" | tr -d '\n ' 2>/dev/null || echo "0")
+            total_upgradable=${total_upgradable//[^0-9]/}
+            pve_upgradable=${pve_upgradable//[^0-9]/}
+            total_upgradable=${total_upgradable:-0}
+            pve_upgradable=${pve_upgradable:-0}
+            if [ "$total_upgradable" -gt 0 ] 2>/dev/null; then
+                echo "Upgrade Proxmox to latest version (${total_upgradable} packages, ${pve_upgradable} PVE-related)"
+            else
+                echo "Upgrade Proxmox to latest version (system up to date)"
+            fi
+            ;;
+        "010") echo "Create AMD GPU-enabled LXC container (deprecated)" ;;
+        "011") echo "Create GPU-enabled LXC container (AMD or NVIDIA)" ;;
+        *) 
+            # Fallback: extract name from script path
+            local script_name="$2"
+            echo "$script_name"
+            ;;
+    esac
+}
+
 # Function to display script with status
 display_script() {
     local script_path="$1"
@@ -99,41 +141,9 @@ display_script() {
     script_num=$(basename "$script_path" | grep -oP '^\d+')
     script_name=$(basename "$script_path" | sed 's/^[0-9]\+ - //' | sed 's/\.sh$//')
     
-    # Get description based on script number
-    local description=""
-    case "$script_num" in
-        "000") description="List all available GPUs and their PCI paths" ;;
-        "001") description="Install essential tools (htop, nvtop, etc.)" ;;
-        "002") description="Setup AMD APUs iGPU VRAM allocation" ;;
-        "003") description="Install AMD GPU drivers" ;;
-        "004") description="Install NVIDIA GPU drivers" ;;
-        "005") description="Verify AMD driver installation" ;;
-        "006") description="Verify NVIDIA driver installation" ;;
-        "007") description="Setup udev rules for GPU device permissions" ;;
-        "008") 
-            # Get upgrade information
-            local total_upgradable
-            local pve_upgradable
-            total_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "upgradable" 2>/dev/null || echo "0")
-            pve_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "pve\|proxmox" 2>/dev/null || echo "0")
-            # Ensure we have valid numbers (remove newlines/spaces)
-            total_upgradable=$(echo "$total_upgradable" | tr -d '\n ' 2>/dev/null || echo "0")
-            pve_upgradable=$(echo "$pve_upgradable" | tr -d '\n ' 2>/dev/null || echo "0")
-            # Sanitize to ensure integer
-            total_upgradable=${total_upgradable//[^0-9]/}
-            pve_upgradable=${pve_upgradable//[^0-9]/}
-            total_upgradable=${total_upgradable:-0}
-            pve_upgradable=${pve_upgradable:-0}
-            if [ "$total_upgradable" -gt 0 ] 2>/dev/null; then
-                description="Upgrade Proxmox to latest version (${total_upgradable} packages, ${pve_upgradable} PVE-related)"
-            else
-                description="Upgrade Proxmox to latest version (system up to date)"
-            fi
-            ;;
-        "010") description="Create AMD GPU-enabled LXC container (deprecated)" ;;
-        "011") description="Create GPU-enabled LXC container (AMD or NVIDIA)" ;;
-        *) description="$script_name" ;;
-    esac
+    # Get description using centralized function
+    local description
+    description=$(get_script_description "$script_num" "$script_name")
     
     # Check completion status
     local status=""
@@ -233,41 +243,9 @@ confirm_run_with_info() {
     script_num=$(basename "$script_path" | grep -oP '^\d+')
     script_name=$(basename "$script_path" | sed 's/^[0-9]\+ - //' | sed 's/\.sh$//')
     
-    # Get description
-    local description=""
-    case "$script_num" in
-        "000") description="List all available GPUs and their PCI paths" ;;
-        "001") description="Install essential tools (htop, nvtop, etc.)" ;;
-        "002") description="Setup AMD APUs iGPU VRAM allocation" ;;
-        "003") description="Install AMD GPU drivers" ;;
-        "004") description="Install NVIDIA GPU drivers" ;;
-        "005") description="Verify AMD driver installation" ;;
-        "006") description="Verify NVIDIA driver installation" ;;
-        "007") description="Setup udev rules for GPU device permissions" ;;
-        "008") 
-            # Get upgrade information
-            local total_upgradable
-            local pve_upgradable
-            total_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "upgradable" 2>/dev/null || echo "0")
-            pve_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "pve\|proxmox" 2>/dev/null || echo "0")
-            # Ensure we have valid numbers (remove newlines/spaces)
-            total_upgradable=$(echo "$total_upgradable" | tr -d '\n ' 2>/dev/null || echo "0")
-            pve_upgradable=$(echo "$pve_upgradable" | tr -d '\n ' 2>/dev/null || echo "0")
-            # Sanitize to ensure integer
-            total_upgradable=${total_upgradable//[^0-9]/}
-            pve_upgradable=${pve_upgradable//[^0-9]/}
-            total_upgradable=${total_upgradable:-0}
-            pve_upgradable=${pve_upgradable:-0}
-            if [ "$total_upgradable" -gt 0 ] 2>/dev/null; then
-                description="Upgrade Proxmox to latest version (${total_upgradable} packages, ${pve_upgradable} PVE-related)"
-            else
-                description="Upgrade Proxmox to latest version (system up to date)"
-            fi
-            ;;
-        "010") description="Create AMD GPU-enabled LXC container (deprecated)" ;;
-        "011") description="Create GPU-enabled LXC container (AMD or NVIDIA)" ;;
-        *) description="$script_name" ;;
-    esac
+    # Get description using centralized function
+    local description
+    description=$(get_script_description "$script_num" "$script_name")
     
     # Check if already completed
     local status_msg=""
