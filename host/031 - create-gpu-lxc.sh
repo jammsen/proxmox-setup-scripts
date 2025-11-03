@@ -163,11 +163,11 @@ else
 fi
 
 echo ""
-HOSTNAME_TEMPLATE="ollama-docker-${GPU_NAME,,}"
+HOSTNAME_TEMPLATE="ollama-docker-${GPU_NAME,,}-$CONTAINER_ID"
 read -r -p "Enter hostname [$HOSTNAME_TEMPLATE]: " HOSTNAME
 HOSTNAME=${HOSTNAME:-$HOSTNAME_TEMPLATE}
 
-IP_TEMPLATE="10.0.0.206"
+IP_TEMPLATE="10.0.0.$CONTAINER_ID"
 read -r -p "Enter container IP address [$IP_TEMPLATE]: " IP_ADDRESS
 IP_ADDRESS=${IP_ADDRESS:-$IP_TEMPLATE}
 
