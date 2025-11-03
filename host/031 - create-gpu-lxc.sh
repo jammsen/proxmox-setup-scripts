@@ -9,7 +9,7 @@ set -e
 
 # Get script directory and source colors
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=../includes/colors.sh
+# shellcheck disable=SC1091
 source "${SCRIPT_DIR}/../includes/colors.sh"
 
 # Prompt for container ID
@@ -310,25 +310,47 @@ if [ "$GPU_TYPE" == "1" ]; then
     # AMD GPU Configuration
     echo "  pct exec $CONTAINER_ID -- ls -la /dev/dri/"
     echo "  pct exec $CONTAINER_ID -- ls -la /dev/kfd"
-    echo -e "${GREEN}Next steps for AMD GPU:${NC}"
-    echo "  # Install Docker + AMD ROCm directly from host:"
-    echo "  pct exec $CONTAINER_ID -- bash /root/proxmox-setup-scripts/lxc/install-docker-and-amd-drivers-in-lxc.sh"
     echo ""
-    echo "  # Or SSH into container and run manually:"
-    echo "  ssh root@$IP_ADDRESS"
-    echo "  cd /root/proxmox-setup-scripts/lxc"
-    echo "  ./install-docker-and-amd-drivers-in-lxc.sh"
+    read -r -p "Install Docker and AMD ROCm libraries now? [Y/n]: " RUN_INSTALL
+    RUN_INSTALL=${RUN_INSTALL:-Y}
+    
+    if [[ "$RUN_INSTALL" =~ ^[Yy]$ ]]; then
+        echo ""
+        echo -e "${GREEN}>>> Running AMD GPU installation script...${NC}"
+        pct exec "$CONTAINER_ID" -- bash /root/proxmox-setup-scripts/lxc/install-docker-and-amd-drivers-in-lxc.sh
+    else
+        echo ""
+        echo -e "${YELLOW}Installation skipped. You can run it manually later:${NC}"
+        echo "  # From Proxmox host:"
+        echo "  pct exec $CONTAINER_ID -- bash /root/proxmox-setup-scripts/lxc/install-docker-and-amd-drivers-in-lxc.sh"
+        echo ""
+        echo "  # Or SSH into container:"
+        echo "  ssh root@$IP_ADDRESS"
+        echo "  cd /root/proxmox-setup-scripts/lxc"
+        echo "  ./install-docker-and-amd-drivers-in-lxc.sh"
+    fi
 else
     # NVIDIA GPU Configuration
     echo "  pct exec $CONTAINER_ID -- ls -la /dev/nvidia*"
     echo "  pct exec $CONTAINER_ID -- ls -la /dev/dri/"
-    echo -e "${GREEN}Next steps for NVIDIA GPU:${NC}"
-    echo "  # Install Docker + NVIDIA toolkit directly from host:"
-    echo "  pct exec $CONTAINER_ID -- bash /root/proxmox-setup-scripts/lxc/install-docker-and-nvidia-drivers-in-lxc.sh"
     echo ""
-    echo "  # Or SSH into container and run manually:"
-    echo "  ssh root@$IP_ADDRESS"
-    echo "  cd /root/proxmox-setup-scripts/lxc"
-    echo "  ./install-docker-and-nvidia-drivers-in-lxc.sh"
+    read -r -p "Install Docker, NVIDIA libraries, and NVIDIA Container Toolkit now? [Y/n]: " RUN_INSTALL
+    RUN_INSTALL=${RUN_INSTALL:-Y}
+    
+    if [[ "$RUN_INSTALL" =~ ^[Yy]$ ]]; then
+        echo ""
+        echo -e "${GREEN}>>> Running NVIDIA GPU installation script...${NC}"
+        pct exec "$CONTAINER_ID" -- bash /root/proxmox-setup-scripts/lxc/install-docker-and-container-runtime-in-lxc-guest.sh
+    else
+        echo ""
+        echo -e "${YELLOW}Installation skipped. You can run it manually later:${NC}"
+        echo "  # From Proxmox host:"
+        echo "  pct exec $CONTAINER_ID -- bash /root/proxmox-setup-scripts/lxc/install-docker-and-container-runtime-in-lxc-guest.sh"
+        echo ""
+        echo "  # Or SSH into container:"
+        echo "  ssh root@$IP_ADDRESS"
+        echo "  cd /root/proxmox-setup-scripts/lxc"
+        echo "  ./install-docker-and-container-runtime-in-lxc-guest.sh"
+    fi
 fi
 echo ""

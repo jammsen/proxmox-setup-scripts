@@ -7,7 +7,7 @@ set -e
 
 # Get script directory and source colors
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=../includes/colors.sh
+# shellcheck disable=SC1091
 source "${SCRIPT_DIR}/../includes/colors.sh"
 
 echo -e "${GREEN}==========================================${NC}"
