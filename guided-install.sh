@@ -383,8 +383,8 @@ while true; do
             ;;
             
         "r"|"reset")
-            read -r -p "Clear all progress tracking? [y/N]: " confirm
-            confirm=${confirm:-N}
+            read -r -p "Clear all progress tracking? [Y/n]: " confirm
+            confirm=${confirm:-Y}
             if [[ "$confirm" =~ ^[Yy]$ ]]; then
                 true > "$PROGRESS_FILE"
                 echo -e "${GREEN}Progress cleared!${NC}"
