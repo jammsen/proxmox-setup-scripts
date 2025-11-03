@@ -97,10 +97,10 @@ get_script_description() {
     
     case "$script_num" in
         "000") echo "(Optional) List all available GPUs and their PCI paths" ;;
-        "001") echo "Install essential tools (htop, nvtop, etc.)" ;;
-        "002") echo "Setup AMD APUs iGPU VRAM allocation" ;;
-        "003") echo "Install AMD GPU drivers" ;;
-        "004") echo "Install NVIDIA GPU drivers" ;;
+        "001") echo "Install essential tools (curl, git, gpg, htop, iperf3, lshw, mc, s-tui, unzip, wget) and setup power-management (powertop, AutoASPM)" ;;
+        "002") echo "Setup AMD Ryzen AI 300 / AI PRO 300 Processors iGPU VRAM allocation" ;;
+        "003") echo "Install AMD ROCm 7.1.X drivers" ;;
+        "004") echo "Install NVIDIA Cuda and Kernel drivers" ;;
         "005") echo "Verify AMD driver installation" ;;
         "006") echo "Verify NVIDIA driver installation" ;;
         "007") echo "Setup udev rules for GPU device permissions" ;;
