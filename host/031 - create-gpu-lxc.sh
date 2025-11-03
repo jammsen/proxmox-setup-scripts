@@ -318,6 +318,12 @@ if [ "$GPU_TYPE" == "1" ]; then
         echo ""
         echo -e "${GREEN}>>> Running AMD GPU installation script...${NC}"
         pct exec "$CONTAINER_ID" -- bash /root/proxmox-setup-scripts/lxc/install-docker-and-amd-drivers-in-lxc.sh
+        echo ""
+        echo "  # You can SSH into container:"
+        echo "  ssh root@$IP_ADDRESS"
+        echo "  cd /root/proxmox-setup-scripts/lxc"
+        echo "  ./install-docker-and-amd-drivers-in-lxc.sh"
+
     else
         echo ""
         echo -e "${YELLOW}Installation skipped. You can run it manually later:${NC}"
@@ -340,17 +346,22 @@ else
     if [[ "$RUN_INSTALL" =~ ^[Yy]$ ]]; then
         echo ""
         echo -e "${GREEN}>>> Running NVIDIA GPU installation script...${NC}"
-        pct exec "$CONTAINER_ID" -- bash /root/proxmox-setup-scripts/lxc/install-docker-and-container-runtime-in-lxc-guest.sh
+        pct exec "$CONTAINER_ID" -- bash /root/proxmox-setup-scripts/lxc/install-docker-and-nvidia-drivers-in-lxc.sh
+        echo ""
+        echo "  # You can SSH into container:"
+        echo "  ssh root@$IP_ADDRESS"
+        echo "  cd /root/proxmox-setup-scripts/lxc"
+        echo "  ./install-docker-and-nvidia-drivers-in-lxc.sh"
     else
         echo ""
         echo -e "${YELLOW}Installation skipped. You can run it manually later:${NC}"
         echo "  # From Proxmox host:"
-        echo "  pct exec $CONTAINER_ID -- bash /root/proxmox-setup-scripts/lxc/install-docker-and-container-runtime-in-lxc-guest.sh"
+        echo "  pct exec $CONTAINER_ID -- bash /root/proxmox-setup-scripts/lxc/install-docker-and-nvidia-drivers-in-lxc.sh"
         echo ""
         echo "  # Or SSH into container:"
         echo "  ssh root@$IP_ADDRESS"
         echo "  cd /root/proxmox-setup-scripts/lxc"
-        echo "  ./install-docker-and-container-runtime-in-lxc-guest.sh"
+        echo "  ./install-docker-and-nvidia-drivers-in-lxc.sh"
     fi
 fi
 echo ""
