@@ -3,6 +3,11 @@
 # Simple script to list all GPUs and their PCI paths
 # Useful for identifying which GPU to assign to which LXC container
 
+# Get script directory and source colors
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../includes/colors.sh
+source "${SCRIPT_DIR}/../includes/colors.sh"
+
 echo "=========================================="
 echo "GPU Detection and PCI Path Listing"
 echo "=========================================="
@@ -14,15 +19,19 @@ lspci -nn -D | grep -E "VGA|3D|Display" | while read -r line; do
     desc=$(echo "$line" | cut -d: -f3-)
     
     vendor="Unknown"
+    vendor_color="$NC"
     if echo "$desc" | grep -qi amd; then
         vendor="AMD"
+        vendor_color="$RED"
     elif echo "$desc" | grep -qi nvidia; then
         vendor="NVIDIA"
+        vendor_color="$GREEN"
     elif echo "$desc" | grep -qi intel; then
         vendor="Intel"
+        vendor_color="$BLUE"
     fi
     
-    echo "[$vendor] $pci -$desc"
+    echo -e "[${vendor_color}${vendor}${NC}] $pci -$desc"
 done
 
 echo ""
@@ -50,16 +59,20 @@ for card in /dev/dri/by-path/pci-*-card; do
         
         # Determine vendor
         vendor="Unknown"
+        vendor_color="$NC"
         if echo "$gpu_info" | grep -qi amd; then
             vendor="AMD"
+            vendor_color="$RED"
         elif echo "$gpu_info" | grep -qi nvidia; then
             vendor="NVIDIA"
+            vendor_color="$GREEN"
         elif echo "$gpu_info" | grep -qi intel; then
             vendor="Intel"
+            vendor_color="$BLUE"
         fi
         
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "PCI Address: $pci_addr [$vendor]"
+        echo -e "PCI Address: $pci_addr [${vendor_color}${vendor}${NC}]"
         echo "Description:$gpu_info"
         echo "Current Mapping:"
         echo "  Card:   $card_dev"
@@ -78,14 +91,14 @@ echo "=== Additional Devices ==="
 
 # Check for KFD (AMD ROCm)
 if [ -e /dev/kfd ]; then
-    echo "✓ /dev/kfd found (AMD ROCm support available)"
+    echo -e "${RED}✓ /dev/kfd found (AMD ROCm support available)${NC}"
 else
     echo "✗ /dev/kfd not found (AMD ROCm not available)"
 fi
 
 # Check for NVIDIA devices
 if ls /dev/nvidia* >/dev/null 2>&1; then
-    echo "✓ NVIDIA devices found:"
+    echo -e "${GREEN}✓ NVIDIA devices found:${NC}"
     ls -1 /dev/nvidia* | head -5
 else
     echo "✗ No NVIDIA devices found"
