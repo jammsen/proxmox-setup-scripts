@@ -220,8 +220,8 @@ show_main_menu() {
     echo -e "${YELLOW}Options:${NC}"
     echo "  all          - Run all Basic Host Setup scripts (with confirmations) [DEFAULT]"
     echo "  <number>     - Run specific script by number (e.g., 001, 004)"
-    echo "  reset        - Clear progress tracking"
-    echo "  quit         - Exit installer"
+    echo "  r/reset      - Clear progress tracking"
+    echo "  q/quit       - Exit installer"
     echo ""
 }
 
@@ -382,7 +382,7 @@ while true; do
             fi
             ;;
             
-        "reset")
+        "r"|"reset")
             read -r -p "Clear all progress tracking? [y/N]: " confirm
             confirm=${confirm:-N}
             if [[ "$confirm" =~ ^[Yy]$ ]]; then
@@ -392,7 +392,7 @@ while true; do
             read -r -p "Press Enter to continue..."
             ;;
             
-        "quit"|"q"|"exit")
+        "q"|"quit")
             echo ""
             echo -e "${GREEN}Thank you for using Proxmox Setup Scripts${NC}"
             echo ""
