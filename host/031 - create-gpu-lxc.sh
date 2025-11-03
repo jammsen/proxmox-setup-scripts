@@ -10,7 +10,7 @@ set -e
 # Get script directory and source colors
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../includes/colors.sh
-source "${SCRIPT_DIR}/includes/colors.sh"
+source "${SCRIPT_DIR}/../includes/colors.sh"
 
 # Prompt for container ID
 read -r -p "Enter container ID [100]: " CONTAINER_ID
