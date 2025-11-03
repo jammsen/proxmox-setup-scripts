@@ -106,11 +106,14 @@ display_script() {
             # Get upgrade information
             local total_upgradable
             local pve_upgradable
-            total_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "upgradable")
-            pve_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "pve\|proxmox")
+            total_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "upgradable" 2>/dev/null || echo "0")
+            pve_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "pve\|proxmox" 2>/dev/null || echo "0")
             # Ensure we have valid numbers (remove newlines/spaces)
-            total_upgradable=$(echo "$total_upgradable" | tr -d '\n ')
-            pve_upgradable=$(echo "$pve_upgradable" | tr -d '\n ')
+            total_upgradable=$(echo "$total_upgradable" | tr -d '\n ' 2>/dev/null || echo "0")
+            pve_upgradable=$(echo "$pve_upgradable" | tr -d '\n ' 2>/dev/null || echo "0")
+            # Sanitize to ensure integer
+            total_upgradable=${total_upgradable//[^0-9]/}
+            pve_upgradable=${pve_upgradable//[^0-9]/}
             total_upgradable=${total_upgradable:-0}
             pve_upgradable=${pve_upgradable:-0}
             if [ "$total_upgradable" -gt 0 ] 2>/dev/null; then
@@ -237,11 +240,14 @@ confirm_run_with_info() {
             # Get upgrade information
             local total_upgradable
             local pve_upgradable
-            total_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "upgradable")
-            pve_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "pve\|proxmox")
+            total_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "upgradable" 2>/dev/null || echo "0")
+            pve_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "pve\|proxmox" 2>/dev/null || echo "0")
             # Ensure we have valid numbers (remove newlines/spaces)
-            total_upgradable=$(echo "$total_upgradable" | tr -d '\n ')
-            pve_upgradable=$(echo "$pve_upgradable" | tr -d '\n ')
+            total_upgradable=$(echo "$total_upgradable" | tr -d '\n ' 2>/dev/null || echo "0")
+            pve_upgradable=$(echo "$pve_upgradable" | tr -d '\n ' 2>/dev/null || echo "0")
+            # Sanitize to ensure integer
+            total_upgradable=${total_upgradable//[^0-9]/}
+            pve_upgradable=${pve_upgradable//[^0-9]/}
             total_upgradable=${total_upgradable:-0}
             pve_upgradable=${pve_upgradable:-0}
             if [ "$total_upgradable" -gt 0 ] 2>/dev/null; then
