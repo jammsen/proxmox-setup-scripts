@@ -163,7 +163,7 @@ run_script() {
     echo -e "${GREEN}========================================${NC}"
     echo ""
     
-    if bash "$script_path"; then
+    if bash "$script_path" < /dev/tty; then
         mark_completed "$script_num"
         echo ""
         echo -e "${GREEN}✓ Completed: $script_name${NC}"
@@ -280,9 +280,20 @@ confirm_run_with_info() {
     echo -e "${GREEN}[$script_num] $script_name${NC}${status_msg}"
     echo -e "${YELLOW}Description:${NC} $description"
     echo -e "${GREEN}──────────────────────────────────────${NC}"
-    read -r -p "Run this script? [Y/n]: " choice < /dev/tty
+    read -r -p "Run this script? [Y/n/q]: " choice < /dev/tty
     choice=${choice:-Y}
-    [[ "$choice" =~ ^[Yy]$ ]]
+    
+    case "$choice" in
+        [Qq]|[Qq][Uu][Ii][Tt])
+            return 2  # Special return code for quit
+            ;;
+        [Yy]|[Yy][Ee][Ss])
+            return 0  # Run the script
+            ;;
+        *)
+            return 1  # Skip the script
+            ;;
+    esac
 }
 
 # Function to prompt user before running script (simple version)
@@ -312,17 +323,25 @@ while true; do
             echo -e "${GREEN}========================================${NC}"
             echo ""
             echo -e "${YELLOW}You will be asked before each script runs.${NC}"
-            echo -e "${YELLOW}Press 'n' to skip any script you don't want to run.${NC}"
+            echo -e "${YELLOW}Press 'y' to run, 'n' to skip, or 'q' to return to main menu.${NC}"
             echo ""
             
             while IFS= read -r script; do
                 script_num=$(basename "$script" | grep -oP '^\d+')
                 
                 # Always ask user with detailed information (never auto-skip in "all" mode)
-                if confirm_run_with_info "$script"; then
+                confirm_run_with_info "$script"
+                result=$?
+                
+                if [ $result -eq 2 ]; then
+                    # User chose to quit back to main menu
+                    echo -e "${YELLOW}Returning to main menu...${NC}"
+                    break
+                elif [ $result -eq 0 ]; then
+                    # User chose to run the script
                     if ! run_script "$script"; then
                         echo ""
-                        read -r -p "Script failed. Continue with next script? [y/N]: " continue_choice
+                        read -r -p "Script failed. Continue with next script? [y/N]: " continue_choice < /dev/tty
                         continue_choice=${continue_choice:-N}
                         if [[ ! "$continue_choice" =~ ^[Yy]$ ]]; then
                             break
@@ -331,6 +350,7 @@ while true; do
                     # Small delay to ensure clean terminal state
                     sleep 0.5
                 else
+                    # User chose to skip
                     echo -e "${YELLOW}Skipped by user: $(basename "$script")${NC}"
                     # Small delay to ensure clean terminal state
                     sleep 0.5
@@ -341,7 +361,7 @@ while true; do
             echo -e "${GREEN}========================================${NC}"
             echo -e "${GREEN}Basic Host Setup process completed!${NC}"
             echo -e "${GREEN}========================================${NC}"
-            read -r -p "Press Enter to continue..."
+            read -r -p "Press Enter to continue..." < /dev/tty
             ;;
             
         [0-9][0-9][0-9])
