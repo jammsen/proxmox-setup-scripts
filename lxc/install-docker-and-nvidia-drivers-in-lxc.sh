@@ -266,22 +266,22 @@ if [[ "$RUN_TEST1" =~ ^[Yy]$ ]]; then
         echo -e "${GREEN}✓ Test 1 passed!${NC}"
         echo ""
         echo -e "${YELLOW}Test 2: PyTorch CUDA availability test${NC}"
-        echo -e "${YELLOW}Image: pytorch/pytorch:latest (~4GB - large download!)${NC}"
-        echo -e "${YELLOW}Command: docker run --rm --gpus all pytorch/pytorch:latest python -c 'import torch; print(torch.cuda.is_available())'${NC}"
+        echo -e "${YELLOW}Image: linuxserver/ffmpeg (~250MB)${NC}"
+        echo -e "${YELLOW}Command: docker run --rm -it --gpus all linuxserver/ffmpeg -hwaccel cuda -f lavfi -i testsrc2=duration=300:size=1280x720:rate=90 -c:v hevc_nvenc -qp 18 nvidia-hevc_nvec-90fps-300s.mp4${NC}"
         echo ""
-        read -r -p "Run Test 2? This will download ~4GB. [Y/n]: " RUN_TEST2
+        read -r -p "Run Test 2? This will download ~250MB. [Y/n]: " RUN_TEST2
         RUN_TEST2=${RUN_TEST2:-Y}
         
         if [[ "$RUN_TEST2" =~ ^[Yy]$ ]]; then
             echo ""
-            echo -e "${GREEN}Downloading PyTorch image (this may take several minutes)...${NC}"
-            docker pull pytorch/pytorch:latest
+            echo -e "${GREEN}Downloading FFmpeg image (this may take several minutes)...${NC}"
+            docker pull linuxserver/ffmpeg
             
             if [ $? -eq 0 ]; then
                 echo ""
-                echo -e "${GREEN}Running PyTorch CUDA test...${NC}"
-                docker run --rm --gpus all pytorch/pytorch:latest python -c 'import torch; print("CUDA Available:", torch.cuda.is_available())'
-                
+                echo -e "${GREEN}Running FFmpeg test...${NC}"
+                docker run --rm -it --gpus all linuxserver/ffmpeg -hwaccel cuda -f lavfi -i testsrc2=duration=300:size=1280x720:rate=90 -c:v hevc_nvenc -qp 18 nvidia-hevc_nvec-90fps-300s.mp4
+
                 if [ $? -eq 0 ]; then
                     echo ""
                     echo -e "${GREEN}✓ Test 2 passed!${NC}"
@@ -296,16 +296,16 @@ if [[ "$RUN_TEST1" =~ ^[Yy]$ ]]; then
                     echo ""
                     echo -e "${GREEN}Both tests passed:${NC}"
                     echo -e "${GREEN}  ✓ nvidia-smi in CUDA container${NC}"
-                    echo -e "${GREEN}  ✓ PyTorch CUDA detection${NC}"
+                    echo -e "${GREEN}  ✓ FFmpeg detection${NC}"
                     echo ""
                 else
                     echo ""
-                    echo -e "${YELLOW}⚠ Test 2 failed - PyTorch could not detect CUDA${NC}"
-                    echo -e "${YELLOW}nvidia-smi works but PyTorch CUDA detection failed.${NC}"
-                    echo -e "${YELLOW}This might be a PyTorch-specific issue.${NC}"
+                    echo -e "${YELLOW}⚠ Test 2 failed - FFmpeg could not detect CUDA${NC}"
+                    echo -e "${YELLOW}nvidia-smi works but FFmpeg detection failed.${NC}"
+                    echo -e "${YELLOW}This might be a FFmpeg-specific issue.${NC}"
                 fi
             else
-                echo -e "${RED}Failed to download PyTorch image. Check your internet connection.${NC}"
+                echo -e "${RED}Failed to download FFmpeg image. Check your internet connection.${NC}"
             fi
         else
             echo ""
@@ -324,7 +324,7 @@ if [[ "$RUN_TEST1" =~ ^[Yy]$ ]]; then
         echo ""
         echo -e "${YELLOW}Example usage:${NC}"
         echo "  docker run --rm --gpus all nvidia/cuda:13.0.1-base-ubuntu24.04 nvidia-smi"
-        echo "  docker run --rm --gpus all pytorch/pytorch:latest python -c 'import torch; print(torch.cuda.is_available())'"
+        echo "  docker run --rm --gpus all linuxserver/ffmpeg -hwaccel cuda -f lavfi -i testsrc2=duration=300:size=1280x720:rate=90 -c:v hevc_nvenc -qp 18 nvidia-hevc_nvec-90fps-300s.mp4"
         echo ""
     else
         echo ""
