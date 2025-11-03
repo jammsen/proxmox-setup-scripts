@@ -3,7 +3,8 @@
 # Guided installation script for Proxmox GPU setup
 # This script provides an interactive menu to run setup scripts in order
 
-set -e
+# Note: NOT using set -e because we need to handle return codes from functions
+# set -e
 
 # Get script directory and source colors
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
