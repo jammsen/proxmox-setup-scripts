@@ -217,8 +217,13 @@ nvidia-ctk runtime configure --runtime=docker
 # CRITICAL for LXC: Disable cgroup management in NVIDIA Container Runtime
 # LXC containers have different cgroup hierarchy than regular systems
 echo -e "${GREEN}>>> Configuring NVIDIA Container Runtime for LXC environment...${NC}"
-sed -i 's/^#no-cgroups = false/no-cgroups = true/' /etc/nvidia-container-runtime/config.toml
-sed -i 's/^no-cgroups = false/no-cgroups = true/' /etc/nvidia-container-runtime/config.toml
+# sed -i 's/^#no-cgroups = false/no-cgroups = true/' /etc/nvidia-container-runtime/config.toml
+# sed -i 's/^no-cgroups = false/no-cgroups = true/' /etc/nvidia-container-runtime/config.toml
+# Remove all existing no-cgroups lines
+sed -i '/no-cgroups/d' /etc/nvidia-container-runtime/config.toml
+# Add it uncommented at the top of the file
+sed -i '1i no-cgroups = true' /etc/nvidia-container-runtime/config.toml
+
 
 # Try to generate CDI config, but don't fail if it doesn't work
 # In LXC, this might fail but Docker will still work
@@ -234,6 +239,7 @@ fi
 # Restart systemd + docker (if you don't reload systemd, it might not work)
 systemctl daemon-reload
 systemctl restart docker
+sleep 2
 echo -e "${GREEN}>>> Docker and NVIDIA Container Toolkit configuration complete${NC}"
 echo ""
 
