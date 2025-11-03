@@ -280,7 +280,7 @@ confirm_run_with_info() {
     echo -e "${GREEN}[$script_num] $script_name${NC}${status_msg}"
     echo -e "${YELLOW}Description:${NC} $description"
     echo -e "${GREEN}──────────────────────────────────────${NC}"
-    read -r -p "Run this script? [Y/n]: " choice
+    read -r -p "Run this script? [Y/n]: " choice < /dev/tty
     choice=${choice:-Y}
     [[ "$choice" =~ ^[Yy]$ ]]
 }
@@ -318,7 +318,7 @@ while true; do
             while IFS= read -r script; do
                 script_num=$(basename "$script" | grep -oP '^\d+')
                 
-                # Always ask user with detailed information
+                # Always ask user with detailed information (never auto-skip in "all" mode)
                 if confirm_run_with_info "$script"; then
                     if ! run_script "$script"; then
                         echo ""
@@ -328,8 +328,12 @@ while true; do
                             break
                         fi
                     fi
+                    # Small delay to ensure clean terminal state
+                    sleep 0.5
                 else
                     echo -e "${YELLOW}Skipped by user: $(basename "$script")${NC}"
+                    # Small delay to ensure clean terminal state
+                    sleep 0.5
                 fi
             done < <(get_scripts "0" "0" "${SCRIPT_DIR}/host")
             
