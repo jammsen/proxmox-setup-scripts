@@ -172,7 +172,11 @@ source /etc/profile.d/rocm.sh
 
 
 # Verify ROCm installation
-echo -e "${GREEN}>>> Verifying ROCm installation...${NC}"
+echo ""
+echo -e "${GREEN}==========================================${NC}"
+echo -e "${GREEN}Verifying ROCm LXC installation...${NC}"
+echo -e "${GREEN}==========================================${NC}"
+echo ""
 which rocm-smi rocminfo nvtop radeontop
 rocminfo | grep -i -A5 'Agent [0-9]'
 rocm-smi --showmemuse --showuse --showmeminfo all --showhw --showproductname
