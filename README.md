@@ -132,8 +132,12 @@ The `guided-install.sh` script provides an interactive menu:
 
 ### Menu Options:
 
-- **`all`** - Run all Basic Host Setup scripts (000-009) with confirmations before each step
-  - ✅ Automatically skips already completed steps
+- **`all`** - Run all Basic Host Setup scripts (000-009) with interactive prompts [DEFAULT]
+  - ✅ Shows detailed description for each script
+  - ✅ Displays completion status (already completed ✓)
+  - ✅ **Always asks** before running each script (never auto-skips)
+  - ✅ Default answer is "Y" - just press Enter to continue
+  - ✅ Press "n" to skip any script you don't need
   - ✅ Never runs LXC Container Setup (010-019) automatically
   
 - **`<number>`** - Run specific script by number

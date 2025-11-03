@@ -90,7 +90,7 @@ display_script() {
     case "$script_num" in
         "000") description="List all available GPUs and their PCI paths" ;;
         "001") description="Install essential tools (htop, nvtop, etc.)" ;;
-        "002") description="Setup Intel iGPU VRAM allocation" ;;
+        "002") description="Setup AMD APUs iGPU VRAM allocation" ;;
         "003") description="Install AMD GPU drivers" ;;
         "004") description="Install NVIDIA GPU drivers" ;;
         "005") description="Verify NVIDIA driver installation" ;;
@@ -159,7 +159,7 @@ get_scripts() {
 show_main_menu() {
     clear
     echo -e "${GREEN}========================================${NC}"
-    echo -e "${GREEN}Proxmox GPU Setup - Guided Installer${NC}"
+    echo -e "${GREEN}Proxmox Setup Scripts - Guided Installer${NC}"
     echo -e "${GREEN}========================================${NC}"
     echo ""
     echo -e "${YELLOW}Progress: $(wc -l < "$PROGRESS_FILE") steps completed${NC}"
@@ -192,7 +192,47 @@ show_main_menu() {
     echo ""
 }
 
-# Function to prompt user before running script
+# Function to prompt user before running script with detailed info
+confirm_run_with_info() {
+    local script_path="$1"
+    local script_num
+    local script_name
+    script_num=$(basename "$script_path" | grep -oP '^\d+')
+    script_name=$(basename "$script_path" | sed 's/^[0-9]\+ - //' | sed 's/\.sh$//')
+    
+    # Get description
+    local description=""
+    case "$script_num" in
+        "000") description="List all available GPUs and their PCI paths" ;;
+        "001") description="Install essential tools (htop, nvtop, etc.)" ;;
+        "002") description="Setup AMD APUs iGPU VRAM allocation" ;;
+        "003") description="Install AMD GPU drivers" ;;
+        "004") description="Install NVIDIA GPU drivers" ;;
+        "005") description="Verify NVIDIA driver installation" ;;
+        "006") description="Setup udev rules for GPU device permissions" ;;
+        "007") description="Upgrade Proxmox to latest version" ;;
+        "010") description="Create AMD GPU-enabled LXC container (deprecated)" ;;
+        "011") description="Create GPU-enabled LXC container (AMD or NVIDIA)" ;;
+        *) description="$script_name" ;;
+    esac
+    
+    # Check if already completed
+    local status_msg=""
+    if is_completed "$script_num" || auto_detect_completion "$script_num"; then
+        status_msg=" ${GREEN}(already completed ✓)${NC}"
+    fi
+    
+    echo ""
+    echo -e "${GREEN}──────────────────────────────────────${NC}"
+    echo -e "${GREEN}[$script_num] $script_name${NC}${status_msg}"
+    echo -e "${YELLOW}Description:${NC} $description"
+    echo -e "${GREEN}──────────────────────────────────────${NC}"
+    read -r -p "Run this script? [Y/n]: " choice
+    choice=${choice:-Y}
+    [[ "$choice" =~ ^[Yy]$ ]]
+}
+
+# Function to prompt user before running script (simple version)
 confirm_run() {
     local script_path="$1"
     local script_name
@@ -214,21 +254,21 @@ while true; do
     case "$choice" in
         "all")
             echo ""
+            echo -e "${GREEN}========================================${NC}"
             echo -e "${GREEN}Running all Basic Host Setup scripts...${NC}"
+            echo -e "${GREEN}========================================${NC}"
+            echo ""
+            echo -e "${YELLOW}You will be asked before each script runs.${NC}"
+            echo -e "${YELLOW}Press 'n' to skip any script you don't want to run.${NC}"
             echo ""
             
             while IFS= read -r script; do
                 script_num=$(basename "$script" | grep -oP '^\d+')
                 
-                # Skip if already completed
-                if is_completed "$script_num" || auto_detect_completion "$script_num"; then
-                    echo -e "${YELLOW}Skipping $script_num (already completed)${NC}"
-                    continue
-                fi
-                
-                # Ask user if they want to run this script
-                if confirm_run "$script"; then
+                # Always ask user with detailed information
+                if confirm_run_with_info "$script"; then
                     if ! run_script "$script"; then
+                        echo ""
                         read -r -p "Script failed. Continue with next script? [y/N]: " continue_choice
                         continue_choice=${continue_choice:-N}
                         if [[ ! "$continue_choice" =~ ^[Yy]$ ]]; then
@@ -236,12 +276,14 @@ while true; do
                         fi
                     fi
                 else
-                    echo -e "${YELLOW}Skipped by user${NC}"
+                    echo -e "${YELLOW}Skipped by user: $(basename "$script")${NC}"
                 fi
             done < <(get_scripts "0" "0" "${SCRIPT_DIR}/host")
             
             echo ""
+            echo -e "${GREEN}========================================${NC}"
             echo -e "${GREEN}Basic Host Setup process completed!${NC}"
+            echo -e "${GREEN}========================================${NC}"
             read -r -p "Press Enter to continue..."
             ;;
             
@@ -308,7 +350,7 @@ while true; do
             
         "quit"|"q"|"exit")
             echo ""
-            echo -e "${GREEN}Thank you for using Proxmox GPU Setup!${NC}"
+            echo -e "${GREEN}Thank you for using Proxmox Setup Scripts${NC}"
             echo ""
             exit 0
             ;;
