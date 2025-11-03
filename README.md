@@ -181,13 +181,13 @@ Progress: 3 steps completed
   [011]: Create GPU-enabled LXC container (AMD or NVIDIA)
 
 Options:
-  all          - Run all Basic Host Setup scripts (with confirmations)
+  all          - Run all Basic Host Setup scripts (with confirmations) [DEFAULT]
   <number>     - Run specific script by number (e.g., 001, 004)
   <start-end>  - Run range of scripts (e.g., 001-006)
   reset        - Clear progress tracking
   quit         - Exit installer
 
-Enter your choice:
+Enter your choice [all]:
 ```
 
 ## Key Benefits of This Approach

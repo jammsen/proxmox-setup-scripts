@@ -113,7 +113,7 @@ display_script() {
         status=" "
     fi
     
-    printf "%s [%s]: %s\n" "$status" "$script_num" "$description"
+    echo -e "${status} [${script_num}]: ${description}"
 }
 
 # Function to run a script
@@ -184,7 +184,7 @@ show_main_menu() {
     
     echo ""
     echo -e "${YELLOW}Options:${NC}"
-    echo "  all          - Run all Basic Host Setup scripts (with confirmations)"
+    echo "  all          - Run all Basic Host Setup scripts (with confirmations) [DEFAULT]"
     echo "  <number>     - Run specific script by number (e.g., 001, 004)"
     echo "  <start-end>  - Run range of scripts (e.g., 001-006)"
     echo "  reset        - Clear progress tracking"
@@ -207,7 +207,8 @@ confirm_run() {
 while true; do
     show_main_menu
     
-    read -r -p "Enter your choice: " choice
+    read -r -p "Enter your choice [all]: " choice
+    choice=${choice:-all}  # Default to "all"
     choice=${choice,,}  # Convert to lowercase
     
     case "$choice" in
