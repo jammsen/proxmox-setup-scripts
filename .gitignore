@@ -1,0 +1,9 @@
+# Guided installer progress tracking
+.install-progress
+
+# Backup files
+*.bak
+*~
+
+# Log files
+*.log

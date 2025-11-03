@@ -4,6 +4,24 @@ Automated scripts for setting up GPU-enabled LXC containers on Proxmox with pers
 
 ## Quick Start
 
+### Option 1: Guided Installation (Recommended)
+
+```bash
+cd /root
+git clone https://github.com/jammsen/proxmox-setup-scripts.git
+cd proxmox-setup-scripts
+./guided-install.sh
+```
+
+The guided installer provides:
+- ✅ **Interactive menu** with progress tracking
+- ✅ **Auto-detection** of completed steps (shows green checkmarks)
+- ✅ **Smart defaults** - "all" runs Basic Host Setup with confirmations
+- ✅ **Flexible execution** - Run individual scripts, ranges, or all steps
+- ✅ **Progress persistence** - Resume where you left off
+
+### Option 2: Manual Installation
+
 ### 1. Clone Repository on Proxmox Host
 
 ```bash
@@ -85,19 +103,91 @@ docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu24.04 nvidia-smi
 
 ```
 proxmox-setup-scripts/
+├── guided-install.sh   # Interactive guided installer (START HERE!)
 ├── host/               # Host-side scripts (run on Proxmox)
 │   ├── 000-list-gpus.sh
+│   ├── 001-install-tools.sh
+│   ├── 002-setup-igpu-vram.sh
 │   ├── 003-install-amd-drivers.sh
 │   ├── 004-install-nvidia-drivers.sh
+│   ├── 005-verify-nvidia-drivers.sh
 │   ├── 006-setup-udev-gpu-rules.sh
-│   ├── 008-create-gpu-lxc.sh (main script)
-│   └── 999-fix-existing-lxc-gpu-mapping.sh
+│   ├── 007-upgrade-proxmox.sh
+│   └── 011-create-gpu-lxc.sh (main LXC creation script)
 ├── lxc/                # Guest-side scripts (run in LXC container)
 │   ├── install-docker-and-container-runtime-in-lxc-guest.sh
 │   └── troubleshoot-nvidia-docker.sh
 ├── includes/           # Shared libraries
 │   └── colors.sh
 └── README.md
+```
+
+## Guided Installer Usage
+
+The `guided-install.sh` script provides an interactive menu:
+
+```bash
+./guided-install.sh
+```
+
+### Menu Options:
+
+- **`all`** - Run all Basic Host Setup scripts (000-009) with confirmations before each step
+  - ✅ Automatically skips already completed steps
+  - ✅ Never runs LXC Container Setup (010-019) automatically
+  
+- **`<number>`** - Run specific script by number
+  - Example: `004` runs NVIDIA driver installation
+  
+- **`<start-end>`** - Run range of scripts
+  - Example: `001-006` runs tools, drivers, and udev setup
+  
+- **`reset`** - Clear progress tracking to start fresh
+
+- **`quit`** - Exit the installer
+
+### Progress Tracking:
+
+The installer automatically detects completed steps by checking:
+- Installed packages (htop, nvtop, nvidia-smi)
+- Loaded kernel modules (amdgpu, nvidia)
+- Configuration files (udev rules, kernel parameters)
+- Shows **green checkmarks (✓)** for completed steps
+
+Progress is saved to `.install-progress` file.
+
+### Example Session:
+
+```
+========================================
+Proxmox GPU Setup - Guided Installer
+========================================
+
+Progress: 3 steps completed
+
+=== Basic Host Setup (000-009) ===
+
+  [000]: List all available GPUs and their PCI paths
+✓ [001]: Install essential tools (htop, nvtop, etc.)
+  [002]: Setup Intel iGPU VRAM allocation
+  [003]: Install AMD GPU drivers
+✓ [004]: Install NVIDIA GPU drivers
+✓ [005]: Verify NVIDIA driver installation
+  [006]: Setup udev rules for GPU device permissions
+  [007]: Upgrade Proxmox to latest version
+
+=== LXC Container Setup (010-019) ===
+
+  [011]: Create GPU-enabled LXC container (AMD or NVIDIA)
+
+Options:
+  all          - Run all Basic Host Setup scripts (with confirmations)
+  <number>     - Run specific script by number (e.g., 001, 004)
+  <start-end>  - Run range of scripts (e.g., 001-006)
+  reset        - Clear progress tracking
+  quit         - Exit installer
+
+Enter your choice:
 ```
 
 ## Key Benefits of This Approach
