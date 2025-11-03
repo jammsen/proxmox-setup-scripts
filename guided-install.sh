@@ -220,7 +220,6 @@ show_main_menu() {
     echo -e "${YELLOW}Options:${NC}"
     echo "  all          - Run all Basic Host Setup scripts (with confirmations) [DEFAULT]"
     echo "  <number>     - Run specific script by number (e.g., 001, 004)"
-    echo "  <start-end>  - Run range of scripts (e.g., 001-006)"
     echo "  reset        - Clear progress tracking"
     echo "  quit         - Exit installer"
     echo ""
@@ -381,44 +380,6 @@ while true; do
                 run_script "$script_path"
                 read -r -p "Press Enter to continue..."
             fi
-            ;;
-            
-        [0-9][0-9][0-9]-[0-9][0-9][0-9])
-            # Run range of scripts
-            start=$(echo "$choice" | cut -d'-' -f1)
-            end=$(echo "$choice" | cut -d'-' -f2)
-            
-            echo ""
-            echo -e "${GREEN}Running scripts $start to $end...${NC}"
-            echo ""
-            
-            for num in $(seq "$start" "$end"); do
-                padded=$(printf "%03d" "$num")
-                script_path=$(find "${SCRIPT_DIR}/host" -maxdepth 1 -name "${padded} - *.sh" -type f)
-                
-                if [ -n "$script_path" ]; then
-                    # Skip if already completed
-                    if is_completed "$padded" || auto_detect_completion "$padded"; then
-                        echo -e "${YELLOW}Skipping $padded (already completed)${NC}"
-                        continue
-                    fi
-                    
-                    if confirm_run "$script_path"; then
-                        if ! run_script "$script_path"; then
-                            read -r -p "Script failed. Continue with next script? [y/N]: " continue_choice
-                            continue_choice=${continue_choice:-N}
-                            if [[ ! "$continue_choice" =~ ^[Yy]$ ]]; then
-                                break
-                            fi
-                        fi
-                    else
-                        echo -e "${YELLOW}Skipped by user${NC}"
-                    fi
-                fi
-            done
-            
-            echo ""
-            read -r -p "Press Enter to continue..."
             ;;
             
         "reset")
