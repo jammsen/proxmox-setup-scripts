@@ -5,11 +5,10 @@
 
 set -e
 
-# Color output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Get script directory and source colors
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../includes/colors.sh
+source "${SCRIPT_DIR}/includes/colors.sh"
 
 # Prompt for container ID
 read -r -p "Enter container ID [100]: " CONTAINER_ID
@@ -22,19 +21,24 @@ echo "1) AMD GPU"
 echo "2) NVIDIA GPU"
 read -r -p "Enter selection [1]: " GPU_TYPE
 GPU_TYPE=${GPU_TYPE:-1}
+GPU_NAME=""
 
 # Prompt for GPU PCI address
 echo ""
 echo -e "${YELLOW}>>> Detecting available GPUs...${NC}"
 echo ""
 
+# Auto-detect first GPU of selected type for default
+TEMPLATE_FIRST_PCI_PATH=""
+
 if [ "$GPU_TYPE" == "1" ]; then
+    GPU_NAME="AMD"
     echo "=== Available AMD GPUs ==="
     echo ""
     # Show AMD GPUs from lspci
-    lspci -nn -D | grep -i "VGA\|3D\|Display" | grep -i amd && echo "" || echo "No AMD GPUs found via lspci"
+    lspci -nn -D | grep -i amd | grep -i "VGA\|3D\|Display" && echo "" || echo "No AMD GPUs found via lspci"
     
-    # Show AMD GPU DRI paths
+    # Show AMD GPU DRI paths and capture first one for default
     echo "Available AMD GPU PCI paths:"
     for card in /dev/dri/by-path/pci-*-card; do
         if [ -e "$card" ]; then
@@ -45,12 +49,16 @@ if [ "$GPU_TYPE" == "1" ]; then
             if echo "$gpu_info" | grep -qi amd; then
                 echo "  $pci_addr -> $(ls -l "$card" | awk '{print $NF}') (AMD)"
                 echo "    $gpu_info"
+                # Set default to first AMD GPU found
+                if [ -z "$TEMPLATE_FIRST_PCI_PATH" ]; then
+                    TEMPLATE_FIRST_PCI_PATH="$pci_addr"
+                fi
             fi
         fi
     done
     echo ""
-    echo "Example PCI address: 0000:a1:00.0 (use the PCI address shown above)"
 else
+    GPU_NAME="NVIDIA"
     echo "=== Available NVIDIA GPUs ==="
     echo ""
     # Show NVIDIA GPUs with full domain:bus:device.function format
@@ -64,15 +72,23 @@ else
             if echo "$gpu_info" | grep -qi nvidia; then
                 echo "  $pci_addr -> $(ls -l "$card" | awk '{print $NF}') (NVIDIA)"
                 echo "    $gpu_info"
+                # Set default to first NVIDIA GPU found
+                if [ -z "$TEMPLATE_FIRST_PCI_PATH" ]; then
+                    TEMPLATE_FIRST_PCI_PATH="$pci_addr"
+                fi
             fi
         fi
     done
     echo ""
-    echo "Example PCI address: 0000:a1:00.0 (use the PCI address shown above)"
 fi
 
-echo ""
-read -r -p "Enter GPU PCI address (e.g., 0000:a1:00.0): " PCI_ADDRESS
+# Prompt with default value
+if [ -n "$TEMPLATE_FIRST_PCI_PATH" ]; then
+    read -r -p "Enter GPU PCI address [$TEMPLATE_FIRST_PCI_PATH]: " PCI_ADDRESS
+    PCI_ADDRESS=${PCI_ADDRESS:-$TEMPLATE_FIRST_PCI_PATH}
+else
+    read -r -p "Enter GPU PCI address (e.g., 0000:a1:00.0): " PCI_ADDRESS
+fi
 
 if [ -z "$PCI_ADDRESS" ]; then
     echo -e "${RED}Error: PCI address is required${NC}"
@@ -80,36 +96,79 @@ if [ -z "$PCI_ADDRESS" ]; then
 fi
 
 # Validate PCI path exists
+CARD_PATH="/dev/dri/by-path/pci-${PCI_ADDRESS}-card"
+RENDER_PATH="/dev/dri/by-path/pci-${PCI_ADDRESS}-render"
+
+if [ ! -e "$CARD_PATH" ]; then
+    echo -e "${RED}Error: $CARD_PATH does not exist${NC}"
+    exit 1
+fi
+if [ ! -e "$RENDER_PATH" ]; then
+    echo -e "${RED}Error: $RENDER_PATH does not exist${NC}"
+    exit 1
+fi
+
 if [ "$GPU_TYPE" == "1" ]; then
-    CARD_PATH="/dev/dri/by-path/pci-${PCI_ADDRESS}-card"
-    RENDER_PATH="/dev/dri/by-path/pci-${PCI_ADDRESS}-render"
-    
-    if [ ! -e "$CARD_PATH" ]; then
-        echo -e "${RED}Error: $CARD_PATH does not exist${NC}"
-        exit 1
-    fi
-    if [ ! -e "$RENDER_PATH" ]; then
-        echo -e "${RED}Error: $RENDER_PATH does not exist${NC}"
-        exit 1
+    # AMD GPU - validate KFD device
+    if [ ! -e "/dev/kfd" ]; then
+        echo -e "${YELLOW}Warning: /dev/kfd does not exist. AMD ROCm may not work.${NC}"
+        echo -e "${YELLOW}Make sure AMD GPU drivers are properly installed on the host.${NC}"
     fi
     
     echo -e "${GREEN}✓ Found AMD GPU at $PCI_ADDRESS${NC}"
     echo "  Card device: $CARD_PATH"
     echo "  Render device: $RENDER_PATH"
+    echo "  KFD device: $([ -e "/dev/kfd" ] && echo "✓ Available" || echo "✗ Not found")"
 else
-    echo -e "${YELLOW}Note: NVIDIA GPU validation skipped${NC}"
+    # NVIDIA GPU - validate NVIDIA-specific devices
+    echo -e "${GREEN}✓ Found NVIDIA GPU at $PCI_ADDRESS${NC}"
+    echo "  Card device: $CARD_PATH"
+    echo "  Render device: $RENDER_PATH"
+    echo ""
+    echo "Validating NVIDIA driver devices:"
+    
+    NVIDIA_DEVICES=("/dev/nvidia0" "/dev/nvidiactl" "/dev/nvidia-modeset" "/dev/nvidia-uvm")
+    MISSING_DEVICES=()
+    
+    for dev in "${NVIDIA_DEVICES[@]}"; do
+        if [ -e "$dev" ]; then
+            echo "  ✓ $dev"
+        else
+            echo "  ✗ $dev (missing)"
+            MISSING_DEVICES+=("$dev")
+        fi
+    done
+    
+    if [ ${#MISSING_DEVICES[@]} -gt 0 ]; then
+        echo ""
+        echo -e "${YELLOW}Warning: Some NVIDIA devices are missing:${NC}"
+        for dev in "${MISSING_DEVICES[@]}"; do
+            echo -e "${YELLOW}  - $dev${NC}"
+        done
+        echo -e "${YELLOW}Make sure NVIDIA drivers are properly installed on the host.${NC}"
+        echo -e "${YELLOW}The container may not function correctly without these devices.${NC}"
+        echo ""
+        read -r -p "Continue anyway? [y/N]: " CONTINUE
+        CONTINUE=${CONTINUE:-N}
+        if [[ ! "$CONTINUE" =~ ^[Yy]$ ]]; then
+            echo "Cancelled."
+            exit 1
+        fi
+    fi
 fi
 
-# Prompt for network configuration
 echo ""
-read -r -p "Enter container IP address [10.0.0.206]: " IP_ADDRESS
-IP_ADDRESS=${IP_ADDRESS:-10.0.0.206}
+HOSTNAME_TEMPLATE="ollama-docker-${GPU_NAME,,}"
+read -r -p "Enter hostname [$HOSTNAME_TEMPLATE]: " HOSTNAME
+HOSTNAME=${HOSTNAME:-$HOSTNAME_TEMPLATE}
 
-read -r -p "Enter gateway [10.0.0.1]: " GATEWAY
-GATEWAY=${GATEWAY:-10.0.0.1}
+IP_TEMPLATE="10.0.0.206"
+read -r -p "Enter container IP address [$IP_TEMPLATE]: " IP_ADDRESS
+IP_ADDRESS=${IP_ADDRESS:-$IP_TEMPLATE}
 
-read -r -p "Enter hostname [ollama-docker-gpu]: " HOSTNAME
-HOSTNAME=${HOSTNAME:-ollama-docker-gpu}
+GW_TEMPLATE="10.0.0.1"
+read -r -p "Enter gateway [$GW_TEMPLATE]: " GATEWAY
+GATEWAY=${GATEWAY:-$GW_TEMPLATE}
 
 # Generate random MAC address
 MAC_ADDRESS=$(printf 'BC:24:11:%02X:%02X:%02X\n' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)))
@@ -216,6 +275,12 @@ echo -e "${GREEN}>>> Starting container${NC}"
 pct start "$CONTAINER_ID"
 sleep 5
 
+echo -e "${GREEN}>>> Mounting scripts directory into container${NC}"
+# Get the repository root directory (parent of host/)
+REPO_DIR="$(dirname "$SCRIPT_DIR")"
+# Add bind mount for scripts directory
+pct set "$CONTAINER_ID" -mp0 "$REPO_DIR,mp=/root/proxmox-setup-scripts"
+
 echo -e "${GREEN}>>> Enabling SSH root login${NC}"
 pct exec "$CONTAINER_ID" -- bash -c "sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config"
 pct exec "$CONTAINER_ID" -- bash -c "sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config"
@@ -231,6 +296,7 @@ echo "GPU Type: $([ "$GPU_TYPE" == "1" ] && echo "AMD" || echo "NVIDIA")"
 echo "GPU PCI Address: $PCI_ADDRESS"
 echo "SSH Access: ssh root@$IP_ADDRESS"
 echo "Default Password: testing"
+echo "Scripts mounted at: /root/proxmox-setup-scripts"
 echo ""
 echo -e "${YELLOW}IMPORTANT: Change the default password after first login!${NC}"
 echo ""
@@ -242,3 +308,13 @@ else
     echo "  pct exec $CONTAINER_ID -- ls -la /dev/nvidia*"
     echo "  pct exec $CONTAINER_ID -- ls -la /dev/dri/"
 fi
+echo ""
+echo -e "${GREEN}Next steps for NVIDIA GPU:${NC}"
+echo "  # Install Docker + NVIDIA toolkit directly from host:"
+echo "  pct exec $CONTAINER_ID -- bash /root/proxmox-setup-scripts/lxc/install-docker-and-container-runtime-in-lxc-guest.sh"
+echo ""
+echo "  # Or SSH into container and run manually:"
+echo "  ssh root@$IP_ADDRESS"
+echo "  cd /root/proxmox-setup-scripts/lxc"
+echo "  ./install-docker-and-container-runtime-in-lxc-guest.sh"
+echo ""
