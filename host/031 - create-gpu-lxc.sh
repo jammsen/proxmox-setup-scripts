@@ -365,3 +365,17 @@ else
     fi
 fi
 echo ""
+echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}>>> LXC Container Setup and Testing Complete! <<<${NC}"
+echo -e "${GREEN}========================================${NC}"
+echo ""
+echo "Container ID: $CONTAINER_ID"
+echo "GPU Type: $([ "$GPU_TYPE" == "1" ] && echo "AMD" || echo "NVIDIA")"
+echo "GPU PCI Address: $PCI_ADDRESS"
+echo "SSH Access: ssh root@$IP_ADDRESS"
+echo "Default Password: testing"
+echo "Scripts mounted at: /root/proxmox-setup-scripts"
+echo ""
+echo -e "${YELLOW}IMPORTANT: Change the default password after first login!${NC}"
+echo ""
+
