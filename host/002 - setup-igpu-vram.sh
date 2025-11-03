@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SCRIPT_DESC: Setup AMD APUs iGPU VRAM allocation
+# SCRIPT_DETECT: grep -q "amdgpu.gttsize=98304" /proc/cmdline 2>/dev/null
+
 echo ">>> Setting iGPU VRAM and related parameters in kernel cmdline"
 
 # Define the parameters to add

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SCRIPT_DESC: Install NVIDIA GPU drivers
+# SCRIPT_DETECT: command -v nvidia-smi &>/dev/null
+
 apt update
 echo ">>> Installing Proxmox headers for current kernel"
 apt install -y proxmox-headers-"$(uname -r)"

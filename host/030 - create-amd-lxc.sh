@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SCRIPT_DESC: Create AMD GPU-enabled LXC container (deprecated)
+# SCRIPT_DETECT: 
 
 # Prompt for container ID with default value of 100
 read -r -p "Enter container ID [100]: " CONTAINER_ID

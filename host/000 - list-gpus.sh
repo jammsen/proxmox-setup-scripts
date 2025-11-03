@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SCRIPT_DESC: List all available GPUs and their PCI paths
+# SCRIPT_DETECT: 
 
 # Simple script to list all GPUs and their PCI paths
 # Useful for identifying which GPU to assign to which LXC container

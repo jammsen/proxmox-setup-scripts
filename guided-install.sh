@@ -2,6 +2,7 @@
 
 # Guided installation script for Proxmox GPU setup
 # This script provides an interactive menu to run setup scripts in order
+# Scripts are discovered automatically by reading metadata headers
 
 # Note: NOT using set -e because we need to handle return codes from functions
 # set -e
@@ -16,6 +17,44 @@ PROGRESS_FILE="${SCRIPT_DIR}/.install-progress"
 
 # Create progress file if it doesn't exist
 touch "$PROGRESS_FILE"
+
+# Associative arrays to store script metadata
+declare -A SCRIPT_DESCRIPTIONS
+declare -A SCRIPT_DETECT_CMDS
+declare -a SCRIPT_NUMS
+
+# Function to extract metadata from script header
+extract_script_metadata() {
+    local script_path="$1"
+    local script_num
+    script_num=$(basename "$script_path" | grep -oP '^\d+')
+    
+    # Read metadata from script header
+    local desc detect_cmd
+    desc=$(grep '^# SCRIPT_DESC:' "$script_path" 2>/dev/null | sed 's/^# SCRIPT_DESC: //')
+    detect_cmd=$(grep '^# SCRIPT_DETECT:' "$script_path" 2>/dev/null | sed 's/^# SCRIPT_DETECT: //')
+    
+    # Store in arrays
+    SCRIPT_NUMS+=("$script_num")
+    SCRIPT_DESCRIPTIONS["$script_num"]="$desc"
+    SCRIPT_DETECT_CMDS["$script_num"]="$detect_cmd"
+}
+
+# Function to discover and load all scripts
+discover_scripts() {
+    # Find all scripts in host directory
+    while IFS= read -r script_path; do
+        extract_script_metadata "$script_path"
+    done < <(find "${SCRIPT_DIR}/host" -maxdepth 1 -name "[0-9][0-9][0-9] - *.sh" -type f | sort)
+    
+    # Sort script numbers (suppress shellcheck warning - we need numeric sort)
+    # shellcheck disable=SC2207
+    IFS=$'\n' SCRIPT_NUMS=($(printf '%s\n' "${SCRIPT_NUMS[@]}" | sort -n))
+    unset IFS
+}
+
+# Initialize: discover all scripts
+discover_scripts
 
 # Function to check if a script has been completed
 is_completed() {
@@ -34,103 +73,50 @@ mark_completed() {
 # Function to check if a script has indicators it was already run
 auto_detect_completion() {
     local script_num="$1"
+    local detect_cmd="${SCRIPT_DETECT_CMDS[$script_num]}"
     
-    case "$script_num" in
-        "001")
-            # Check if common tools are installed
-            if command -v htop &> /dev/null && command -v nvtop &> /dev/null; then
-                return 0
-            fi
-            ;;
-        "002")
-            # Check if AMD APU iGPU VRAM is configured
-            if grep -q "amdgpu.gttsize=98304" /proc/cmdline 2>/dev/null; then
-                return 0
-            fi
-            ;;
-        "003")
-            # Check if AMD drivers are loaded
-            if lsmod | grep -q amdgpu; then
-                return 0
-            fi
-            ;;
-        "004")
-            # Check if NVIDIA drivers are installed
-            if command -v nvidia-smi &> /dev/null; then
-                return 0
-            fi
-            ;;
-        "005")
-            # Check if AMD drivers are installed (same as 003)
-            if lsmod | grep -q amdgpu; then
-                return 0
-            fi
-            ;;
-        "006")
-            # Check if NVIDIA drivers are installed (same as 004)
-            if command -v nvidia-smi &> /dev/null; then
-                return 0
-            fi
-            ;;
-        "007")
-            # Check if udev rules exist
-            if [ -f /etc/udev/rules.d/99-gpu-passthrough.rules ]; then
-                return 0
-            fi
-            ;;
-        "008")
-            # Check if system has upgradable packages
-            # If no upgradable packages, consider it "done"
-            upgradable=$(apt list --upgradable 2>/dev/null | grep -c "upgradable")
-            if [ "$upgradable" -eq 0 ]; then
-                return 0
-            fi
-            return 1
-            ;;
-    esac
-    return 1
+    # If no detection command, return false
+    if [ -z "$detect_cmd" ]; then
+        return 1
+    fi
+    
+    # Execute the detection command
+    if eval "$detect_cmd" 2>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
 }
 
 # Function to get script description by number
 get_script_description() {
     local script_num="$1"
+    local script_name="$2"
     
-    case "$script_num" in
-        "000") echo "(Optional) List all available GPUs and their PCI paths" ;;
-        "001") echo "Install essential tools (curl, git, gpg, htop, iperf3, lshw, mc, s-tui, unzip, wget) and setup power-management (powertop, AutoASPM)" ;;
-        "002") echo "Setup AMD Ryzen AI 300 / AI PRO 300 Processors iGPU VRAM allocation" ;;
-        "003") echo "Install AMD ROCm 7.1.X drivers" ;;
-        "004") echo "Install NVIDIA Cuda and Kernel drivers" ;;
-        "005") echo "Verify AMD driver installation" ;;
-        "006") echo "Verify NVIDIA driver installation" ;;
-        "007") echo "Setup udev rules for GPU device permissions" ;;
-        "008") 
-            # Get upgrade information dynamically
-            local total_upgradable
-            local pve_upgradable
-            total_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "upgradable" 2>/dev/null || echo "0")
-            pve_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "pve\|proxmox" 2>/dev/null || echo "0")
-            # Sanitize to ensure integer
-            total_upgradable=$(echo "$total_upgradable" | tr -d '\n ' 2>/dev/null || echo "0")
-            pve_upgradable=$(echo "$pve_upgradable" | tr -d '\n ' 2>/dev/null || echo "0")
-            total_upgradable=${total_upgradable//[^0-9]/}
-            pve_upgradable=${pve_upgradable//[^0-9]/}
-            total_upgradable=${total_upgradable:-0}
-            pve_upgradable=${pve_upgradable:-0}
-            if [ "$total_upgradable" -gt 0 ] 2>/dev/null; then
-                echo "Upgrade Proxmox to latest version (${total_upgradable} packages, ${pve_upgradable} PVE-related)"
-            else
-                echo "Upgrade Proxmox to latest version (system up to date)"
-            fi
-            ;;
-        "010") echo "Create AMD GPU-enabled LXC container (deprecated)" ;;
-        "011") echo "Create GPU-enabled LXC container (AMD or NVIDIA)" ;;
-        *) 
-            # Fallback: extract name from script path
-            local script_name="$2"
-            echo "$script_name"
-            ;;
-    esac
+    # Try to get from metadata first
+    local desc="${SCRIPT_DESCRIPTIONS[$script_num]}"
+    
+    # For script 999 (upgrade), add dynamic package count if description contains "Upgrade"
+    if [[ "$script_num" == "999" && "$desc" =~ "Upgrade" ]]; then
+        local total_upgradable pve_upgradable
+        total_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "upgradable" 2>/dev/null || echo "0")
+        pve_upgradable=$(apt list --upgradable 2>/dev/null | grep -c "pve\|proxmox" 2>/dev/null || echo "0")
+        # Sanitize to ensure integer
+        total_upgradable=${total_upgradable//[^0-9]/}
+        pve_upgradable=${pve_upgradable//[^0-9]/}
+        total_upgradable=${total_upgradable:-0}
+        pve_upgradable=${pve_upgradable:-0}
+        if [ "$total_upgradable" -gt 0 ] 2>/dev/null; then
+            echo "$desc (${total_upgradable} packages, ${pve_upgradable} PVE-related)"
+        else
+            echo "$desc (system up to date)"
+        fi
+    elif [ -n "$desc" ]; then
+        echo "$desc"
+    else
+        # Fallback to script name
+        echo "$script_name"
+    fi
 }
 
 # Function to display script with status
@@ -188,15 +174,18 @@ run_script() {
     fi
 }
 
-# Function to get available scripts in a range
-get_scripts() {
+# Function to get available scripts in a numeric range
+get_scripts_in_range() {
     local start="$1"
     local end="$2"
-    local dir="$3"
     
-    find "$dir" -maxdepth 1 -name "[0-9][0-9][0-9] - *.sh" -type f | \
-        grep -E "/${start}[0-9] - |/0[${start}-${end}][0-9] - " | \
-        sort
+    # Filter scripts by numeric range
+    for num in "${SCRIPT_NUMS[@]}"; do
+        if [ "$num" -ge "$start" ] && [ "$num" -le "$end" ]; then
+            # Find the actual script file
+            find "${SCRIPT_DIR}/host" -maxdepth 1 -name "${num} - *.sh" -type f
+        fi
+    done | sort
 }
 
 # Main menu
@@ -209,27 +198,36 @@ show_main_menu() {
     echo -e "${YELLOW}Progress: $(wc -l < "$PROGRESS_FILE") steps completed${NC}"
     echo ""
     
-    echo -e "${GREEN}=== Basic Host Setup (000-009) ===${NC}"
+    echo -e "${GREEN}=== Host Setup Scripts (000-029) ===${NC}"
     echo ""
     
-    # List host setup scripts
+    # List host setup scripts (000-029)
     while IFS= read -r script; do
         display_script "$script"
-    done < <(get_scripts "0" "0" "${SCRIPT_DIR}/host")
+    done < <(get_scripts_in_range 0 29)
     
     echo ""
-    echo -e "${GREEN}=== LXC Container Setup (010-019) ===${NC}"
+    echo -e "${GREEN}=== LXC Container Scripts (030-099) ===${NC}"
     echo ""
     
-    # List LXC setup scripts
+    # List LXC setup scripts (030-099)
     while IFS= read -r script; do
         display_script "$script"
-    done < <(get_scripts "1" "1" "${SCRIPT_DIR}/host")
+    done < <(get_scripts_in_range 30 99)
+    
+    echo ""
+    echo -e "${GREEN}=== System Maintenance (999) ===${NC}"
+    echo ""
+    
+    # List system maintenance scripts (999)
+    while IFS= read -r script; do
+        display_script "$script"
+    done < <(get_scripts_in_range 999 999)
     
     echo ""
     echo -e "${YELLOW}Options:${NC}"
-    echo "  all          - Run all Basic Host Setup scripts (with confirmations) [DEFAULT]"
-    echo "  <number>     - Run specific script by number (e.g., 001, 004)"
+    echo "  all          - Run all Host Setup scripts (000-029) with confirmations [DEFAULT]"
+    echo "  <number>     - Run specific script by number (e.g., 001, 031, 999)"
     echo "  r/reset      - Clear progress tracking"
     echo "  q/quit       - Exit installer"
     echo ""
@@ -298,7 +296,7 @@ while true; do
         "all")
             echo ""
             echo -e "${GREEN}========================================${NC}"
-            echo -e "${GREEN}Running all Basic Host Setup scripts...${NC}"
+            echo -e "${GREEN}Running all Host Setup scripts (000-029)...${NC}"
             echo -e "${GREEN}========================================${NC}"
             echo ""
             echo -e "${YELLOW}You will be asked before each script runs.${NC}"
@@ -336,7 +334,7 @@ while true; do
                     # Small delay to ensure clean terminal state
                     sleep 0.5
                 fi
-            done < <(get_scripts "0" "0" "${SCRIPT_DIR}/host")
+            done < <(get_scripts_in_range 0 29)
             
             if [ "$quit_requested" = false ]; then
                 echo ""

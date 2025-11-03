@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SCRIPT_DESC: Verify AMD driver installation
+# SCRIPT_DETECT: lsmod | grep -q amdgpu
 
 # Verify AMD ROCm driver installation
 # This script checks if AMD drivers and tools are properly installed and accessible

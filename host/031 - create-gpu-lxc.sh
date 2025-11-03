@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SCRIPT_DESC: Create GPU-enabled LXC container (AMD or NVIDIA)
+# SCRIPT_DETECT: 
 
 # Enhanced LXC GPU container creation script with automatic GPU detection
 # This script ensures correct GPU mapping using persistent PCI paths
