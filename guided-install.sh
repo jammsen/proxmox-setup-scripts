@@ -326,6 +326,7 @@ while true; do
             echo -e "${YELLOW}Press 'y' to run, 'n' to skip, or 'q' to return to main menu.${NC}"
             echo ""
             
+            quit_requested=false
             while IFS= read -r script; do
                 script_num=$(basename "$script" | grep -oP '^\d+')
                 
@@ -336,6 +337,7 @@ while true; do
                 if [ $result -eq 2 ]; then
                     # User chose to quit back to main menu
                     echo -e "${YELLOW}Returning to main menu...${NC}"
+                    quit_requested=true
                     break
                 elif [ $result -eq 0 ]; then
                     # User chose to run the script
@@ -357,11 +359,13 @@ while true; do
                 fi
             done < <(get_scripts "0" "0" "${SCRIPT_DIR}/host")
             
-            echo ""
-            echo -e "${GREEN}========================================${NC}"
-            echo -e "${GREEN}Basic Host Setup process completed!${NC}"
-            echo -e "${GREEN}========================================${NC}"
-            read -r -p "Press Enter to continue..." < /dev/tty
+            if [ "$quit_requested" = false ]; then
+                echo ""
+                echo -e "${GREEN}========================================${NC}"
+                echo -e "${GREEN}Basic Host Setup process completed!${NC}"
+                echo -e "${GREEN}========================================${NC}"
+                read -r -p "Press Enter to continue..." < /dev/tty
+            fi
             ;;
             
         [0-9][0-9][0-9])
