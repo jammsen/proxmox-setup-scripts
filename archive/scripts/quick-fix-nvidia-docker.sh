@@ -38,7 +38,7 @@ sleep 2
 
 echo ""
 echo "4. Testing GPU in Docker..."
-docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu24.04 nvidia-smi
+docker run --rm --gpus all nvidia/cuda:13.0.1-base-ubuntu24.04 nvidia-smi
 
 if [ $? -eq 0 ]; then
     echo ""

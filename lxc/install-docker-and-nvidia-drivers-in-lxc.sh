@@ -246,14 +246,14 @@ echo ""
 echo -e "${GREEN}>>> Verifying NVIDIA Container Toolkit installation with Docker...${NC}"
 echo ""
 echo -e "${YELLOW}Test 1: NVIDIA SMI test${NC}"
-echo -e "${YELLOW}Image: nvidia/cuda:12.6.0-base-ubuntu24.04 (~250MB)${NC}"
-echo -e "${YELLOW}Command: docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu24.04 nvidia-smi${NC}"
+echo -e "${YELLOW}Image: nvidia/cuda:13.0.1-base-ubuntu24.04 (~250MB)${NC}"
+echo -e "${YELLOW}Command: docker run --rm --gpus all nvidia/cuda:13.0.1-base-ubuntu24.04 nvidia-smi${NC}"
 echo ""
 read -r -p "Run Test 1? This will download ~250MB. [Y/n]: " RUN_TEST1
 RUN_TEST1=${RUN_TEST1:-Y}
 
 if [[ "$RUN_TEST1" =~ ^[Yy]$ ]]; then
-    docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu24.04 nvidia-smi
+    docker run --rm --gpus all nvidia/cuda:13.0.1-base-ubuntu24.04 nvidia-smi
     
     if [ $? -eq 0 ]; then
         echo ""
@@ -317,7 +317,7 @@ if [[ "$RUN_TEST1" =~ ^[Yy]$ ]]; then
         
         echo ""
         echo -e "${YELLOW}Example usage:${NC}"
-        echo "  docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu24.04 nvidia-smi"
+        echo "  docker run --rm --gpus all nvidia/cuda:13.0.1-base-ubuntu24.04 nvidia-smi"
         echo "  docker run --rm --gpus all pytorch/pytorch:latest python -c 'import torch; print(torch.cuda.is_available())'"
         echo ""
     else
@@ -340,6 +340,6 @@ if [[ "$RUN_TEST1" =~ ^[Yy]$ ]]; then
 else
     echo ""
     echo -e "${YELLOW}Tests skipped. You can manually test later with:${NC}"
-    echo "  docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu24.04 nvidia-smi"
+    echo "  docker run --rm --gpus all nvidia/cuda:13.0.1-base-ubuntu24.04 nvidia-smi"
     echo ""
 fi
