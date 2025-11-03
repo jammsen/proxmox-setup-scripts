@@ -24,6 +24,7 @@ echo "2) NVIDIA GPU"
 read -r -p "Enter selection [1]: " GPU_TYPE
 GPU_TYPE=${GPU_TYPE:-1}
 GPU_NAME=""
+ADDITIONAL_TAGS=""
 
 # Prompt for GPU PCI address
 echo ""
@@ -35,6 +36,7 @@ TEMPLATE_FIRST_PCI_PATH=""
 
 if [ "$GPU_TYPE" == "1" ]; then
     GPU_NAME="AMD"
+    ADDITIONAL_TAGS="amd"
     echo "=== Available AMD GPUs ==="
     echo ""
     # Show AMD GPUs from lspci
@@ -61,6 +63,7 @@ if [ "$GPU_TYPE" == "1" ]; then
     echo ""
 else
     GPU_NAME="NVIDIA"
+    ADDITIONAL_TAGS="nvidia"
     echo "=== Available NVIDIA GPUs ==="
     echo ""
     # Show NVIDIA GPUs with full domain:bus:device.function format
@@ -212,7 +215,7 @@ pct create "$CONTAINER_ID" local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.
     --password testing \
     --rootfs local-zfs:160 \
     --swap 4096 \
-    --tags "docker;ollama;gpu" \
+    --tags "docker;ollama;${ADDITIONAL_TAGS}" \
     --unprivileged 0
 
 echo -e "${GREEN}>>> Added LXC container with ID $CONTAINER_ID${NC}"
@@ -304,19 +307,28 @@ echo -e "${YELLOW}IMPORTANT: Change the default password after first login!${NC}
 echo ""
 echo "To verify GPU inside container:"
 if [ "$GPU_TYPE" == "1" ]; then
+    # AMD GPU Configuration
     echo "  pct exec $CONTAINER_ID -- ls -la /dev/dri/"
     echo "  pct exec $CONTAINER_ID -- ls -la /dev/kfd"
+    echo -e "${GREEN}Next steps for AMD GPU:${NC}"
+    echo "  # Install Docker + AMD ROCm directly from host:"
+    echo "  pct exec $CONTAINER_ID -- bash /root/proxmox-setup-scripts/lxc/install-docker-and-amd-drivers-in-lxc.sh"
+    echo ""
+    echo "  # Or SSH into container and run manually:"
+    echo "  ssh root@$IP_ADDRESS"
+    echo "  cd /root/proxmox-setup-scripts/lxc"
+    echo "  ./install-docker-and-amd-drivers-in-lxc.sh"
 else
+    # NVIDIA GPU Configuration
     echo "  pct exec $CONTAINER_ID -- ls -la /dev/nvidia*"
     echo "  pct exec $CONTAINER_ID -- ls -la /dev/dri/"
+    echo -e "${GREEN}Next steps for NVIDIA GPU:${NC}"
+    echo "  # Install Docker + NVIDIA toolkit directly from host:"
+    echo "  pct exec $CONTAINER_ID -- bash /root/proxmox-setup-scripts/lxc/install-docker-and-nvidia-drivers-in-lxc.sh"
+    echo ""
+    echo "  # Or SSH into container and run manually:"
+    echo "  ssh root@$IP_ADDRESS"
+    echo "  cd /root/proxmox-setup-scripts/lxc"
+    echo "  ./install-docker-and-nvidia-drivers-in-lxc.sh"
 fi
-echo ""
-echo -e "${GREEN}Next steps for NVIDIA GPU:${NC}"
-echo "  # Install Docker + NVIDIA toolkit directly from host:"
-echo "  pct exec $CONTAINER_ID -- bash /root/proxmox-setup-scripts/lxc/install-docker-and-container-runtime-in-lxc-guest.sh"
-echo ""
-echo "  # Or SSH into container and run manually:"
-echo "  ssh root@$IP_ADDRESS"
-echo "  cd /root/proxmox-setup-scripts/lxc"
-echo "  ./install-docker-and-container-runtime-in-lxc-guest.sh"
 echo ""
