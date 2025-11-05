@@ -2,6 +2,7 @@
 # Run this before running docker compose up: docker volume create ollama-models
 services:
     ollama-main-gpu:
+        image: ollama/ollama:rocm
         container_name: ollama-gpu
         ports:
             - 11434:11434
@@ -21,6 +22,7 @@ services:
         volumes:
             - ollama-models:/root/.ollama
     ollama-rocm6-gpu:
+        image: ghcr.io/phueper/ollama-linux-amd-apu:optm-rocm_6_7
         container_name: ollama-rocm6-gpu
         ports:
             - 11434:11434
@@ -42,8 +44,8 @@ services:
         ipc: host
         volumes:
             - ollama-models:/root/.ollama
-        image: ghcr.io/phueper/ollama-linux-amd-apu:optm-rocm_6_7
     ollama-rocm7-gpu:
+        image: ghcr.io/phueper/ollama-linux-amd-apu:optm-rocm_6_7
         container_name: ollama-rocm7-gpu
         ports:
             - 11434:11434
@@ -65,8 +67,8 @@ services:
         ipc: host
         volumes:
             - ollama-models:/root/.ollama
-        image: ghcr.io/phueper/ollama-linux-amd-apu:optm-rocm_6_7
     ollama-vulkan-gpu:
+        image: ghcr.io/phueper/ollama-linux-amd-apu:optm-rocm_6_7
         container_name: ollama-vulkan-gpu
         ports:
             - 11434:11434
@@ -88,7 +90,6 @@ services:
         ipc: host
         volumes:
             - ollama-models:/root/.ollama
-        image: ghcr.io/phueper/ollama-linux-amd-apu:optm-rocm_6_7
 
 volumes:
     ollama-models:
