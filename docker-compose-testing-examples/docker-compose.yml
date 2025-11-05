@@ -1,0 +1,96 @@
+# Before use please create persistent volume for Ollama models
+# Run this before running docker compose up: docker volume create ollama-models
+services:
+    ollama-main-gpu:
+        container_name: ollama-gpu
+        ports:
+            - 11434:11434
+        devices:
+            - /dev/kfd
+            - /dev/dri
+        environment:
+            - HSA_OVERRIDE_GFX_VERSION=11.5.1
+            - HSA_ENABLE_SDMA=0
+        group_add:
+            - video
+        cap_add:
+            - SYS_PTRACE
+        security_opt:
+            - seccomp=unconfined
+        ipc: host
+        volumes:
+            - ollama-models:/root/.ollama
+    ollama-rocm6-gpu:
+        container_name: ollama-rocm6-gpu
+        ports:
+            - 11434:11434
+        devices:
+            - /dev/kfd
+            - /dev/dri
+        environment:
+            - OLLAMA_LLM_LIBRARY=rocm_v6
+            - OLLAMA_FLASH_ATTENTION=true
+            - OLLAMA_DEBUG=1
+            - HSA_OVERRIDE_GFX_VERSION=11.5.1
+            - HSA_ENABLE_SDMA=0
+        group_add:
+            - video
+        cap_add:
+            - SYS_PTRACE
+        security_opt:
+            - seccomp=unconfined
+        ipc: host
+        volumes:
+            - ollama-models:/root/.ollama
+        image: ghcr.io/phueper/ollama-linux-amd-apu:optm-rocm_6_7
+    ollama-rocm7-gpu:
+        container_name: ollama-rocm7-gpu
+        ports:
+            - 11434:11434
+        devices:
+            - /dev/kfd
+            - /dev/dri
+        environment:
+            - OLLAMA_LLM_LIBRARY=rocm_v7
+            - OLLAMA_FLASH_ATTENTION=true
+            - OLLAMA_DEBUG=1
+            - HSA_OVERRIDE_GFX_VERSION=11.5.1
+            - HSA_ENABLE_SDMA=0
+        group_add:
+            - video
+        cap_add:
+            - SYS_PTRACE
+        security_opt:
+            - seccomp=unconfined
+        ipc: host
+        volumes:
+            - ollama-models:/root/.ollama
+        image: ghcr.io/phueper/ollama-linux-amd-apu:optm-rocm_6_7
+    ollama-vulkan-gpu:
+        container_name: ollama-vulkan-gpu
+        ports:
+            - 11434:11434
+        devices:
+            - /dev/kfd
+            - /dev/dri
+        environment:
+            - OLLAMA_LLM_LIBRARY=vulkan
+            - OLLAMA_FLASH_ATTENTION=true
+            - OLLAMA_DEBUG=1
+            - HSA_OVERRIDE_GFX_VERSION=11.5.1
+            - HSA_ENABLE_SDMA=0
+        group_add:
+            - video
+        cap_add:
+            - SYS_PTRACE
+        security_opt:
+            - seccomp=unconfined
+        ipc: host
+        volumes:
+            - ollama-models:/root/.ollama
+        image: ghcr.io/phueper/ollama-linux-amd-apu:optm-rocm_6_7
+
+volumes:
+    ollama-models:
+        external: true
+        name: ollama-models
