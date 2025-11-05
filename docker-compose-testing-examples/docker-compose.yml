@@ -3,7 +3,7 @@
 services:
     ollama-main-gpu:
         image: ollama/ollama:rocm
-        container_name: ollama-gpu
+        container_name: ollama-main-gpu
         ports:
             - 11434:11434
         devices:
