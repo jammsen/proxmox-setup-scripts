@@ -25,7 +25,7 @@ services:
         image: ghcr.io/phueper/ollama-linux-amd-apu:optm-rocm_6_7
         container_name: ollama-rocm6-gpu
         ports:
-            - 11434:11434
+            - 11435:11434
         devices:
             - /dev/kfd
             - /dev/dri
@@ -48,7 +48,7 @@ services:
         image: ghcr.io/phueper/ollama-linux-amd-apu:optm-rocm_6_7
         container_name: ollama-rocm7-gpu
         ports:
-            - 11434:11434
+            - 11436:11434
         devices:
             - /dev/kfd
             - /dev/dri
@@ -71,7 +71,7 @@ services:
         image: ghcr.io/phueper/ollama-linux-amd-apu:optm-rocm_6_7
         container_name: ollama-vulkan-gpu
         ports:
-            - 11434:11434
+            - 11437:11434
         devices:
             - /dev/kfd
             - /dev/dri
