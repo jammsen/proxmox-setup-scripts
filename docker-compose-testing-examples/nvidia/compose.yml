@@ -1,0 +1,27 @@
+# Before use please create persistent volume for Ollama models or bind mount a host directory
+# Run this before running docker compose up: docker volume create ollama-models
+# Monitoring snippet:
+# watch -d "docker exec ollama-main-gpu ollama list && echo \"\\nollama-main-gpu\\n\" && docker exec ollama-main-gpu ollama ps"
+services:
+    ollama-main-gpu:
+        image: ollama/ollama
+        container_name: ollama-main-gpu
+        ports:
+            - 11434:11434
+        environment:
+            - OLLAMA_NUM_PARALLEL=4
+            #- OLLAMA_MAX_LOADED_MODELS=3
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            capabilities: ["gpu"]
+            count: all
+        volumes:
+            - ollama-models:/root/.ollama
+
+volumes:
+    ollama-models:
+        external: true
+        name: ollama-models
