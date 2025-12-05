@@ -10,6 +10,7 @@ services:
             - 11434:11434
         environment:
             - OLLAMA_NUM_PARALLEL=4
+            #- OLLAMA_SCHED_SPREAD=1
             #- OLLAMA_MAX_LOADED_MODELS=3
         deploy:
             resources:
