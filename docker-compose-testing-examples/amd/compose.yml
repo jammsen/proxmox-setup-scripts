@@ -4,8 +4,9 @@
 # watch -d "docker exec ollama-main-gpu ollama list && echo \"\\nollama-main-gpu\\n\" && docker exec ollama-main-gpu ollama ps && echo \"\\nollama-rocm6-gpu\\n\" && docker exec ollama-rocm6-gpu ollama ps && echo \"\\nollama-rocm7-gpu\\n\" && docker exec ollama-rocm7-gpu ollama ps && echo \"\\nollama-vulkan-gpu\\n\" && docker exec ollama-vulkan-gpu ollama ps"
 services:
     ollama-main-gpu:
-        image: ollama/ollama:rocm
         container_name: ollama-main-gpu
+        image: ollama/ollama:rocm
+        restart: unless-stopped
         ports:
             - 11434:11434
         devices:

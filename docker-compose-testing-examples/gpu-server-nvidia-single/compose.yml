@@ -3,8 +3,9 @@
 # watch -d "docker exec ollama-main-gpu ollama list && echo \"\\nollama-main-gpu\\n\" && docker exec ollama-main-gpu ollama ps"
 services:
     ollama-main-gpu:
-        image: ollama/ollama
         container_name: ollama-main-gpu
+        image: ollama/ollama
+        restart: unless-stopped
         ports:
             - 11434:11434
         environment:
