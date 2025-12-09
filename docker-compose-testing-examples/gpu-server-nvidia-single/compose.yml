@@ -1,0 +1,23 @@
+# We will use mount-point pass-through to provide models to all LXC containers
+# Monitoring snippet:
+# watch -d "docker exec ollama-main-gpu ollama list && echo \"\\nollama-main-gpu\\n\" && docker exec ollama-main-gpu ollama ps"
+services:
+    ollama-main-gpu:
+        image: ollama/ollama
+        container_name: ollama-main-gpu
+        ports:
+            - 11434:11434
+        environment:
+            - OLLAMA_MODELS=/opt/llm-models
+            - OLLAMA_NUM_PARALLEL=4
+            #- OLLAMA_SCHED_SPREAD=1
+            #- OLLAMA_MAX_LOADED_MODELS=3
+        deploy:
+            resources:
+                reservations:
+                    devices:
+                        - driver: nvidia
+                          count: all
+                          capabilities: [gpu]
+        volumes:
+            - /opt/llm-models:/opt/llm-models
