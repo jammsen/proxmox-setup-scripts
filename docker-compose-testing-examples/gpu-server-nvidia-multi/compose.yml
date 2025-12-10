@@ -9,6 +9,7 @@ services:
         ports:
             - 11434:11434
         environment:
+            - CUDA_VISIBLE_DEVICES
             - OLLAMA_MODELS=/opt/llm-models
             - OLLAMA_NUM_PARALLEL=4
             - OLLAMA_SCHED_SPREAD=1
