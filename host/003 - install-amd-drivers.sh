@@ -9,8 +9,8 @@ wget https://repo.radeon.com/rocm/rocm.gpg.key -O - | \
 gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg > /dev/null
 
 tee /etc/apt/sources.list.d/rocm.list << EOF
-deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/7.1 noble main
-deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/graphics/7.1/ubuntu noble main
+deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/7.1.1 noble main
+deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/graphics/7.1.1/ubuntu noble main
 EOF
 
 tee /etc/apt/preferences.d/rocm-pin-600 << EOF
