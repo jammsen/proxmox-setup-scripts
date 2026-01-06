@@ -20,7 +20,7 @@ while true; do
             echo ">>> Installing powertop and AutoASPM"
             apt install -y powertop
             echo ">>> Cloning AutoASPM repository to /opt/AutoASPM"
-            git clone https://github.com/notthebee/AutoASPM.git /opt/AutoASPM
+            git clone https://git.notthebe.ee/notthebee/AutoASPM.git /opt/AutoASPM
             echo ">>> Running power management optimizations via Powertop - \"powertop --auto-tune\" "
             powertop --auto-tune
             echo ">>> Running power management optimizations via AutoASPM - \"chmod u+x /opt/AutoASPM/pkgs/autoaspm.py && /opt/AutoASPM/pkgs/autoaspm.py\" "
