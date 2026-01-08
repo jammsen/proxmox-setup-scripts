@@ -1,0 +1,79 @@
+name: "🐞 Bug report"
+description: Create a bug report to help us improve things
+labels: ["bug"]
+title: "[Bug Report] Your descriptive title here!"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Important information
+        ### Thank you for taking the time to fill out this bug report in a sensible way and provide us with a clear information on your "Software and Hardware-Setup" and the "Steps to reproduce" your problem!
+  - type: checkboxes
+    id: understand-minimum-required-info
+    attributes:
+      label: You understand that if you dont provide clear information on your "Problem", "Software and Hardware-Setup" and the "Steps to reproduce" your issue might be closed without any help, because your not willing to do your part?
+      options:
+        - label: Yes i do!
+          required: true
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: Current behavior
+      description: A clear and concise description of what the problem is.
+      placeholder: Currently...
+    validations:
+      required: true
+  - type: textarea
+    id: desired-behavior
+    attributes:
+      label: Desired behavior
+      description: Remember, im not familiar with your setup, your permission, your settings and all that kind of stuff, please provide a clear description of what your desired outcome is.
+      placeholder: Desired behavior ...
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot-links
+    attributes:
+      label: Links to screenshots
+      placeholder: ...
+    validations:
+      required: false
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: What steps can i do to reproduce your problem?
+      value: |
+        Steps to reproduce the behavior:
+        1. Go to '...'
+        2. Click on '....'
+        3. Scroll down to '....'
+        4. See error
+    validations:
+      required: true
+  - type: textarea
+    id: software
+    attributes:
+      label: Software setup
+      value: |
+        - OS:
+        - Kernel:
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware setup
+      value: |
+        - CPU: 
+        - RAM: 
+        - Disk:
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Additional context
+      placeholder: Add any other context about the problem here, in as much detail as possible.
+    validations:
+      required: false
