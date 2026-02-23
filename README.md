@@ -42,7 +42,7 @@ This collection of scripts currently focuses on GPU-enabled LXC containers, with
 The guided installer provides an interactive menu with progress tracking and auto-detection:
 
 ```bash
-apt install -y curl git gpg htop iperf3 lshw mc s-tui unzip wget
+apt install -y git
 cd /root
 git clone https://github.com/jammsen/proxmox-setup-scripts.git
 cd proxmox-setup-scripts
