@@ -175,6 +175,10 @@ GW_TEMPLATE="10.0.0.1"
 read -r -p "Enter gateway [$GW_TEMPLATE]: " GATEWAY
 GATEWAY=${GATEWAY:-$GW_TEMPLATE}
 
+ROOT_FS_LOCATION_TEMPLATE="local-zfs"
+read -r -p "Enter root fs location [$ROOT_FS_LOCATION_TEMPLATE]: " ROOT_FS_LOCATION
+ROOT_FS_LOCATION=${ROOT_FS_LOCATION:-$ROOT_FS_LOCATION_TEMPLATE}
+
 # Generate random MAC address
 MAC_ADDRESS=$(printf 'BC:24:11:%02X:%02X:%02X\n' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)))
 
@@ -213,7 +217,7 @@ pct create "$CONTAINER_ID" local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.
     --net0 "name=eth0,bridge=vmbr0,firewall=1,gw=$GATEWAY,hwaddr=$MAC_ADDRESS,ip=$IP_ADDRESS/24,type=veth" \
     --ostype ubuntu \
     --password testing \
-    --rootfs local-zfs:160 \
+    --rootfs $ROOT_FS_LOCATION:160 \
     --swap 4096 \
     --tags "docker;ollama;${ADDITIONAL_TAGS}" \
     --unprivileged 0
@@ -224,14 +228,30 @@ echo -e "${GREEN}>>> Added LXC container with ID $CONTAINER_ID${NC}"
 if [ "$GPU_TYPE" == "1" ]; then
     # AMD GPU Configuration
     echo -e "${GREEN}>>> Configuring AMD GPU passthrough${NC}"
+
+    # search cgroup of /dev/kfd
+    KFD_CGROUP_MAJOR_MINOR=$(ls -al /dev/kfd | sed 's/,//' | awk '{print $5, $6}')
+    KFD_CGROUP_MAJOR=$(echo "$KFD_CGROUP_MAJOR_MINOR" | cut -d' ' -f1)
+    KFD_CGROUP_MINOR=$(echo "$KFD_CGROUP_MAJOR_MINOR" | cut -d' ' -f2)
+
+    # search cgroup of /dev/dri/card0
+    DRICARD0_CGROUP_MAJOR_MINOR=$(ls -al /dev/dri/card0 | sed 's/,//' | awk '{print $5, $6}')
+    DRICARD0_CGROUP_MAJOR=$(echo "$DRICARD0_CGROUP_MAJOR_MINOR" | cut -d' ' -f1)
+    DRICARD0_CGROUP_MINOR=$(echo "$DRICARD0_CGROUP_MAJOR_MINOR" | cut -d' ' -f2)
+
+    # search cgroup of /dev/dri/renderD128
+    DRENDERD128_CGROUP_MAJOR_MINOR=$(ls -al /dev/dri/renderD128 | sed 's/,//' | awk '{print $5, $6}')
+    DRENDERD128_CGROUP_MAJOR=$(echo "$DRENDERD128_CGROUP_MAJOR_MINOR" | cut -d' ' -f1)
+    DRENDERD128_CGROUP_MINOR=$(echo "$DRENDERD128_CGROUP_MAJOR_MINOR" | cut -d' ' -f2)
     
     cat >> "/etc/pve/lxc/${CONTAINER_ID}.conf" << EOF
 # ===== AMD GPU Passthrough Configuration =====
 # PCI Address: $PCI_ADDRESS
 # Using persistent by-path device names to ensure consistent mapping
 # Allow access to cgroup devices (DRI and KFD)
-lxc.cgroup2.devices.allow: c 226:* rwm
-lxc.cgroup2.devices.allow: c 235:* rwm
+lxc.cgroup2.devices.allow: c ${DRICARD0_CGROUP_MAJOR}:${DRICARD0_CGROUP_MINOR} rwm
+lxc.cgroup2.devices.allow: c ${DRENDERD128_CGROUP_MAJOR}:${DRENDERD128_CGROUP_MINOR} rwm
+lxc.cgroup2.devices.allow: c ${KFD_CGROUP_MAJOR}:${KFD_CGROUP_MINOR} rwm
 # Mount DRI devices using persistent PCI paths
 lxc.mount.entry: /dev/dri/by-path/pci-${PCI_ADDRESS}-card dev/dri/card0 none bind,optional,create=file
 lxc.mount.entry: /dev/dri/by-path/pci-${PCI_ADDRESS}-render dev/dri/renderD128 none bind,optional,create=file
