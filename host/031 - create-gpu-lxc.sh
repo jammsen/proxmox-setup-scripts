@@ -175,6 +175,10 @@ GW_TEMPLATE="10.0.0.1"
 read -r -p "Enter gateway [$GW_TEMPLATE]: " GATEWAY
 GATEWAY=${GATEWAY:-$GW_TEMPLATE}
 
+ROOT_FS_LOCATION_TEMPLATE="local-zfs"
+read -r -p "Enter root fs location [$ROOT_FS_LOCATION_TEMPLATE]: " ROOT_FS_LOCATION
+ROOT_FS_LOCATION=${ROOT_FS_LOCATION:-$ROOT_FS_LOCATION_TEMPLATE}
+
 # Generate random MAC address
 MAC_ADDRESS=$(printf 'BC:24:11:%02X:%02X:%02X\n' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)))
 
@@ -213,7 +217,7 @@ pct create "$CONTAINER_ID" local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.
     --net0 "name=eth0,bridge=vmbr0,firewall=1,gw=$GATEWAY,hwaddr=$MAC_ADDRESS,ip=$IP_ADDRESS/24,type=veth" \
     --ostype ubuntu \
     --password testing \
-    --rootfs local-zfs:160 \
+    --rootfs $ROOT_FS_LOCATION:160 \
     --swap 4096 \
     --tags "docker;ollama;${ADDITIONAL_TAGS}" \
     --unprivileged 0
