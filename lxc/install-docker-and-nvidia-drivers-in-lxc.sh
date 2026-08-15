@@ -52,7 +52,8 @@ apt remove -y docker-compose docker docker.io containerd runc 2>/dev/null || tru
 
 # Update package list and upgrade existing packages
 echo -e "${GREEN}>>> Updating system packages...${NC}"
-apt update && apt upgrade -y
+# Non-interactive: keep locally modified configs (e.g. sshd_config with root login enabled)
+apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y -o Dpkg::Options::=--force-confold
 
 # Install Docker prerequisites
 echo -e "${GREEN}>>> Installing prerequisites...${NC}"
@@ -104,9 +105,11 @@ echo ""
 echo -e "${GREEN}>>> Adding NVIDIA CUDA repository...${NC}"
 # Pick the CUDA repo matching the container's Ubuntu release (2404 for noble, 2604 for resolute)
 UBUNTU_REL=$(. /etc/os-release && echo "${VERSION_ID//./}")
-wget "https://developer.download.nvidia.com/compute/cuda/repos/ubuntu${UBUNTU_REL:-2604}/x86_64/cuda-keyring_1.1-1_all.deb"
-dpkg -i cuda-keyring_1.1-1_all.deb
-rm cuda-keyring_1.1-1_all.deb
+# Download to a temp dir: the current directory may be the read-only scripts mount
+KEYRING_TMP=$(mktemp -d)
+wget -O "${KEYRING_TMP}/cuda-keyring_1.1-1_all.deb" "https://developer.download.nvidia.com/compute/cuda/repos/ubuntu${UBUNTU_REL:-2604}/x86_64/cuda-keyring_1.1-1_all.deb"
+dpkg -i "${KEYRING_TMP}/cuda-keyring_1.1-1_all.deb"
+rm -rf "${KEYRING_TMP}"
 apt update
 
 # Install NVIDIA libraries (user-space only, NO kernel modules)

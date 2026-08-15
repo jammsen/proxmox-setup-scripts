@@ -52,7 +52,8 @@ apt remove -y docker-compose docker docker.io containerd runc 2>/dev/null || tru
 
 # Update package list and upgrade existing packages
 echo -e "${GREEN}>>> Updating system packages...${NC}"
-apt update && apt upgrade -y
+# Non-interactive: keep locally modified configs (e.g. sshd_config with root login enabled)
+apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y -o Dpkg::Options::=--force-confold
 
 # Install Docker prerequisites
 echo -e "${GREEN}>>> Installing prerequisites...${NC}"
