@@ -112,50 +112,67 @@ dpkg -i "${KEYRING_TMP}/cuda-keyring_1.1-1_all.deb"
 rm -rf "${KEYRING_TMP}"
 apt update
 
-# Install NVIDIA libraries (user-space only, NO kernel modules)
-# Note: We install the latest available version, but it must match the host driver
+# Install NVIDIA user-space libraries (NO kernel modules - those come from the host).
+# The versions MUST match the host driver exactly, otherwise libcuda/libnvidia-ml refuse to
+# work ("Driver/library version mismatch"). We only need libcuda, libnvidia-ml and nvidia-smi.
 echo -e "${GREEN}>>> Installing NVIDIA user-space libraries...${NC}"
 
-# First, detect what driver version is on the host
-HOST_DRIVER_VERSION=""
-if [ -e /dev/nvidia0 ]; then
-    # Try to detect driver version from host
-    # The nvidia-smi in container will show the host driver version
-    HOST_DRIVER_VERSION=$(cat /proc/driver/nvidia/version 2>/dev/null | grep "Kernel Module" | awk '{print $8}' || echo "")
+HOST_DRIVER_VERSION=$(grep "Kernel Module" /proc/driver/nvidia/version 2>/dev/null | awk '{print $8}' || true)
+if [ -z "$HOST_DRIVER_VERSION" ]; then
+    echo -e "${RED}Could not detect the host NVIDIA driver version (/proc/driver/nvidia/version).${NC}"
+    echo -e "${RED}Make sure the NVIDIA driver is installed on the Proxmox host (script 004) and the GPU is passed through.${NC}"
+    exit 1
 fi
+DRIVER_MAJOR=$(echo "$HOST_DRIVER_VERSION" | cut -d'.' -f1)
+echo -e "${GREEN}Host NVIDIA driver version: ${YELLOW}$HOST_DRIVER_VERSION${NC}"
 
-if [ -n "$HOST_DRIVER_VERSION" ]; then
-    echo -e "${GREEN}Detected host NVIDIA driver version: ${YELLOW}$HOST_DRIVER_VERSION${NC}"
-    # Extract major version (e.g., 560 from 560.35.03 or 580 from 580.95.05)
-    DRIVER_MAJOR=$(echo "$HOST_DRIVER_VERSION" | cut -d'.' -f1)
-    echo -e "${GREEN}Installing libraries for driver series: ${YELLOW}$DRIVER_MAJOR${NC}"
+# The CUDA apt repo uses two naming schemes:
+#  - Ubuntu 26.04 repo: unversioned packages (libnvidia-compute, nvidia-driver, ...)
+#  - Ubuntu 24.04 repo: versioned packages   (libnvidia-compute-580, nvidia-utils-580, ...)
+# nvidia-smi lives in libnvidia-compute (26.04) resp. nvidia-utils-<major> (24.04).
+if apt-cache show libnvidia-compute >/dev/null 2>&1; then
+    NV_PKGS=(libnvidia-compute)
+    NV_OPT_PKGS=(libnvidia-encode libnvidia-decode)
 else
-    echo -e "${YELLOW}Could not detect host driver version, using latest available...${NC}"
-    DRIVER_MAJOR="560"
+    NV_PKGS=("libnvidia-compute-${DRIVER_MAJOR}" "nvidia-utils-${DRIVER_MAJOR}")
+    NV_OPT_PKGS=("libnvidia-encode-${DRIVER_MAJOR}" "libnvidia-decode-${DRIVER_MAJOR}")
 fi
 
-# Determine if this is a server driver
-DRIVER_SUFFIX=""
-if apt-cache search "nvidia-driver-${DRIVER_MAJOR}-server" | grep -q "nvidia-driver-${DRIVER_MAJOR}-server"; then
-    echo -e "${GREEN}Detected server driver series${NC}"
-    DRIVER_SUFFIX="-server"
+# Find the exact package version matching the host driver (e.g. 610.57.04-1ubuntu1),
+# taken from NVIDIA's CUDA repository only (not Ubuntu's own multiverse/restricted builds)
+NV_VERSION=$(apt-cache madison "${NV_PKGS[0]}" | awk -v v="$HOST_DRIVER_VERSION" '$3 ~ "^"v && /developer\.download\.nvidia\.com/ {print $3; exit}')
+if [ -z "$NV_VERSION" ]; then
+    echo -e "${RED}No package ${NV_PKGS[0]} with version ${HOST_DRIVER_VERSION} found in NVIDIA's CUDA repository.${NC}"
+    echo -e "${RED}Versions available there:${NC}"
+    apt-cache madison "${NV_PKGS[0]}" | awk '/developer\.download\.nvidia\.com/ {print "  "$3}' | head -10
+    echo -e "${YELLOW}The container libraries must match the host driver exactly. Either update the host driver${NC}"
+    echo -e "${YELLOW}(script 004 / apt upgrade on the host) or wait until the CUDA repo ships this version.${NC}"
+    exit 1
+fi
+echo -e "${GREEN}Installing ${NV_PKGS[*]} version ${YELLOW}$NV_VERSION${NC}"
+
+# Remove previously installed NVIDIA packages of a different version (e.g. from a failed earlier run)
+# (the NVIDIA container toolkit packages have their own versioning and are left alone)
+if dpkg -l 2>/dev/null | awk '/^ii/ && ($2 ~ /^(lib)?nvidia-/) && ($2 !~ /container/) {print $3}' | grep -qv "^${HOST_DRIVER_VERSION}"; then
+    echo -e "${YELLOW}Removing NVIDIA packages that do not match the host driver version...${NC}"
+    apt-get purge -y 'nvidia-driver*' 'nvidia-dkms*' 'nvidia-kernel*' 'nvidia-utils*' 'nvidia-compute-utils*' \
+        'nvidia-firmware*' 'nvidia-settings' 'nvidia-prime' 'nvidia-persistenced' 'nvidia-modprobe' 'xserver-xorg-video-nvidia*' \
+        'libnvidia-compute*' 'libnvidia-cfg1*' 'libnvidia-gl*' 'libnvidia-decode*' 'libnvidia-encode*' 'libnvidia-extra*' \
+        'libnvidia-fbc1*' 'libnvidia-common*' 'libnvidia-gpucomp*' 'libnvidia-egl*' 2>/dev/null || true
+    apt-get autoremove -y --purge
 fi
 
-# Install matching libraries
-# For LXC, we need the full driver package to get all libraries including libnvidia-ml.so.1
-echo -e "${GREEN}Installing nvidia-driver-${DRIVER_MAJOR}${DRIVER_SUFFIX}...${NC}"
-apt install -y "nvidia-driver-${DRIVER_MAJOR}${DRIVER_SUFFIX}" || {
-    echo -e "${YELLOW}Failed to install nvidia-driver-${DRIVER_MAJOR}${DRIVER_SUFFIX}${NC}"
-    echo -e "${YELLOW}Trying alternative installation method...${NC}"
-    
-    # Try installing just the compute libraries
-    apt install -y \
-        "libnvidia-compute-${DRIVER_MAJOR}:amd64" \
-        "libnvidia-ml-${DRIVER_MAJOR}:amd64" \
-        "libnvidia-encode-${DRIVER_MAJOR}:amd64" \
-        "libnvidia-decode-${DRIVER_MAJOR}:amd64" \
-        "libnvidia-fbc1-${DRIVER_MAJOR}:amd64" 2>/dev/null || echo -e "${YELLOW}Some packages failed to install${NC}"
-}
+NV_INSTALL=()
+for pkg in "${NV_PKGS[@]}"; do NV_INSTALL+=("${pkg}=${NV_VERSION}"); done
+for pkg in "${NV_OPT_PKGS[@]}"; do
+    apt-cache madison "$pkg" | awk '{print $3}' | grep -qx "$NV_VERSION" && NV_INSTALL+=("${pkg}=${NV_VERSION}")
+done
+apt-get install -y --no-install-recommends "${NV_INSTALL[@]}"
+
+# Hold the packages so a later 'apt upgrade' inside the container cannot drift away from the host driver
+apt-mark hold "${NV_PKGS[@]}" "${NV_OPT_PKGS[@]}" 2>/dev/null || true
+echo -e "${GREEN}NVIDIA user-space libraries installed and pinned to ${NV_VERSION}.${NC}"
+echo -e "${YELLOW}Note: when you update the NVIDIA driver on the host, re-run this script in the container.${NC}"
 
 # Prevent kernel modules from being loaded (they come from host)
 echo -e "${GREEN}>>> Preventing kernel modules from loading (handled by host)...${NC}"
@@ -181,22 +198,25 @@ echo ""
 echo -e "${GREEN}>>> Creating library symlinks...${NC}"
 ldconfig
 
-# Verify nvidia-smi works (may show version mismatch if libraries don't match host)
-echo -e "${GREEN}>>> Testing nvidia-smi on host...${NC}"
+# Verify nvidia-smi works inside the container
+echo -e "${GREEN}>>> Testing nvidia-smi in the container...${NC}"
 if command -v nvidia-smi &> /dev/null; then
     if nvidia-smi 2>&1 | grep -q "version mismatch"; then
-        echo -e "${YELLOW}⚠ nvidia-smi shows driver/library version mismatch${NC}"
-        echo -e "${YELLOW}This is expected in LXC and will work correctly in Docker containers.${NC}"
+        echo -e "${RED}✗ nvidia-smi reports a driver/library version mismatch.${NC}"
+        echo -e "${RED}  Host driver: ${HOST_DRIVER_VERSION}, container libraries: ${NV_VERSION}${NC}"
+        echo -e "${RED}  CUDA will not work until they match. Re-run this script after fixing the host driver.${NC}"
+        exit 1
     elif nvidia-smi >/dev/null 2>&1; then
         nvidia-smi
         echo ""
         echo -e "${GREEN}✓ nvidia-smi working correctly!${NC}"
     else
-        echo -e "${YELLOW}⚠ nvidia-smi test failed on host, but GPU will work in Docker containers.${NC}"
+        echo -e "${YELLOW}⚠ nvidia-smi failed:${NC}"
         nvidia-smi 2>&1 || true
     fi
 else
-    echo -e "${YELLOW}⚠ nvidia-smi not available.${NC}"
+    echo -e "${RED}✗ nvidia-smi not found after installation.${NC}"
+    exit 1
 fi
 echo ""
 
