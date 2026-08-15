@@ -102,7 +102,9 @@ echo ""
 
 # Add NVIDIA CUDA repository
 echo -e "${GREEN}>>> Adding NVIDIA CUDA repository...${NC}"
-wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+# Pick the CUDA repo matching the container's Ubuntu release (2404 for noble, 2604 for resolute)
+UBUNTU_REL=$(. /etc/os-release && echo "${VERSION_ID//./}")
+wget "https://developer.download.nvidia.com/compute/cuda/repos/ubuntu${UBUNTU_REL:-2604}/x86_64/cuda-keyring_1.1-1_all.deb"
 dpkg -i cuda-keyring_1.1-1_all.deb
 rm cuda-keyring_1.1-1_all.deb
 apt update

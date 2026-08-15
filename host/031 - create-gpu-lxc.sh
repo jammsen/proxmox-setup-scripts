@@ -12,6 +12,59 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/../includes/colors.sh"
 
+# Verify GPU devices inside the container and evaluate the result for the user.
+# Handles DRI (Intel/AMD/NVIDIA), /dev/kfd (AMD ROCm) and /dev/nvidia* (NVIDIA CUDA).
+verify_gpu_in_container() {
+    local ctid="$1" gpu_type="$2"
+    local ok=0 fail=0 warn=0
+
+    check_dev() {
+        # $1 = path in container, $2 = required (yes/no), $3 = description
+        local out
+        if out=$(pct exec "$ctid" -- ls -la "$1" 2>/dev/null) && [ -n "$out" ]; then
+            echo -e "  ${GREEN}✓${NC} $1 - $3"
+            echo "$out" | sed 's/^/      /'
+            ok=$((ok+1))
+        elif [ "$2" == "yes" ]; then
+            echo -e "  ${RED}✗${NC} $1 missing - $3 (required)"
+            fail=$((fail+1))
+        else
+            echo -e "  ${YELLOW}-${NC} $1 missing - $3 (optional)"
+            warn=$((warn+1))
+        fi
+    }
+
+    echo ""
+    echo -e "${YELLOW}>>> Verifying GPU devices inside container $ctid...${NC}"
+    echo ""
+    if [ "$gpu_type" == "1" ]; then
+        # AMD: ROCm needs DRI card+render and KFD
+        check_dev /dev/dri/card0      yes "DRI card node (display/modesetting)"
+        check_dev /dev/dri/renderD128 yes "DRI render node (ROCm/OpenCL/VAAPI compute)"
+        check_dev /dev/kfd            yes "AMD Kernel Fusion Driver (ROCm compute)"
+    else
+        # NVIDIA: CUDA needs nvidia0/nvidiactl/uvm; DRI only if nvidia_drm is loaded on host
+        check_dev /dev/nvidia0        yes "NVIDIA GPU device (CUDA)"
+        check_dev /dev/nvidiactl      yes "NVIDIA control device (CUDA)"
+        check_dev /dev/nvidia-uvm     yes "NVIDIA unified memory (CUDA)"
+        check_dev /dev/nvidia-uvm-tools no  "NVIDIA UVM tools"
+        check_dev /dev/nvidia-modeset no  "NVIDIA modesetting (needs nvidia_modeset on host, not needed for CUDA)"
+        check_dev /dev/nvidia-caps    no  "NVIDIA capability devices (MIG/monitoring)"
+        check_dev /dev/dri/card0      no  "DRI card node (needs nvidia_drm on host, not needed for CUDA)"
+        check_dev /dev/dri/renderD128 no  "DRI render node (needs nvidia_drm on host, not needed for CUDA)"
+    fi
+
+    echo ""
+    if [ "$fail" -eq 0 ]; then
+        echo -e "${GREEN}Result: All required GPU devices are present ($ok found, $warn optional missing).${NC}"
+        [ "$warn" -gt 0 ] && echo -e "${YELLOW}Optional devices missing are fine for compute (CUDA/ROCm) workloads.${NC}"
+    else
+        echo -e "${RED}Result: $fail required GPU device(s) missing - GPU passthrough is NOT working.${NC}"
+        echo -e "${RED}Check host devices (ls -la /dev/dri /dev/kfd /dev/nvidia*) and /etc/pve/lxc/${ctid}.conf${NC}"
+    fi
+    echo ""
+}
+
 # Prompt for container ID
 read -r -p "Enter container ID [100]: " CONTAINER_ID
 CONTAINER_ID=${CONTAINER_ID:-100}
@@ -216,11 +269,22 @@ echo ""
 echo -e "${GREEN}>>> Updating Proxmox VE Appliance list${NC}"
 pveam update
 
-echo -e "${GREEN}>>> Downloading Ubuntu 24.04 LXC template to local storage${NC}"
-pveam download local ubuntu-24.04-standard_24.04-2_amd64.tar.zst 2>/dev/null || echo "Template already exists"
+# Template selection per GPU type:
+#  - NVIDIA: Ubuntu 26.04 LTS (CUDA repo ubuntu2604, Docker, container toolkit and Ollama all support it)
+#  - AMD:    Ubuntu 24.04 LTS (ROCm apt repos only exist for jammy/noble, no resolute yet)
+if [ "$GPU_TYPE" == "1" ]; then
+    LXC_TEMPLATE="ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
+    LXC_TEMPLATE_NAME="Ubuntu 24.04"
+else
+    LXC_TEMPLATE="ubuntu-26.04-standard_26.04-1_amd64.tar.zst"
+    LXC_TEMPLATE_NAME="Ubuntu 26.04"
+fi
+
+echo -e "${GREEN}>>> Downloading ${LXC_TEMPLATE_NAME} LXC template to local storage${NC}"
+pveam download local "$LXC_TEMPLATE" 2>/dev/null || echo "Template already exists"
 
 echo -e "${GREEN}>>> Creating LXC container with GPU passthrough support${NC}"
-pct create "$CONTAINER_ID" local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst \
+pct create "$CONTAINER_ID" "local:vztmpl/${LXC_TEMPLATE}" \
     --arch amd64 \
     --cores 8 \
     --features nesting=1 \
@@ -321,12 +385,18 @@ echo "Scripts mounted at: /root/proxmox-setup-scripts"
 echo ""
 echo -e "${YELLOW}IMPORTANT: Change the default password after first login!${NC}"
 echo ""
-echo "To verify GPU inside container:"
+read -r -p "Verify GPU devices inside the container now? [Y/n]: " RUN_VERIFY
+RUN_VERIFY=${RUN_VERIFY:-Y}
+if [[ "$RUN_VERIFY" =~ ^[Yy]$ ]]; then
+    verify_gpu_in_container "$CONTAINER_ID" "$GPU_TYPE"
+else
+    echo "You can verify manually later:"
+    echo "  pct exec $CONTAINER_ID -- ls -la /dev/dri/ /dev/kfd /dev/nvidia*"
+    echo ""
+fi
+
 if [ "$GPU_TYPE" == "1" ]; then
     # AMD GPU Configuration
-    echo "  pct exec $CONTAINER_ID -- ls -la /dev/dri/"
-    echo "  pct exec $CONTAINER_ID -- ls -la /dev/kfd"
-    echo ""
     read -r -p "Install Docker and AMD ROCm libraries now? [Y/n]: " RUN_INSTALL
     RUN_INSTALL=${RUN_INSTALL:-Y}
     
@@ -353,9 +423,6 @@ if [ "$GPU_TYPE" == "1" ]; then
     fi
 else
     # NVIDIA GPU Configuration
-    echo "  pct exec $CONTAINER_ID -- ls -la /dev/nvidia*"
-    echo "  pct exec $CONTAINER_ID -- ls -la /dev/dri/"
-    echo ""
     read -r -p "Install Docker, NVIDIA libraries, and NVIDIA Container Toolkit now? [Y/n]: " RUN_INSTALL
     RUN_INSTALL=${RUN_INSTALL:-Y}
     

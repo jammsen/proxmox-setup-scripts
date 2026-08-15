@@ -112,7 +112,7 @@ Creates udev rules for consistent GPU device permissions and persistent PCI-base
 This interactive script will:
 1. Prompt you to select GPU type (AMD or NVIDIA)
 2. Auto-detect available GPUs with their PCI addresses
-3. Create an Ubuntu 24.04 LXC container with GPU passthrough
+3. Create an Ubuntu LXC container with GPU passthrough (26.04 for NVIDIA, 24.04 for AMD - ROCm has no 26.04 repos yet)
 4. Configure persistent PCI-based device mapping
 5. Mount the scripts directory at `/root/proxmox-setup-scripts` inside the container
 6. Enable SSH access (default password: `testing`)
