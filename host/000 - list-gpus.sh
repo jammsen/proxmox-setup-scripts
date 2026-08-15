@@ -42,8 +42,9 @@ echo "Use these PCI addresses in your LXC configurations:"
 echo ""
 
 if [ ! -d /dev/dri/by-path ]; then
-    echo "ERROR: /dev/dri/by-path not found. GPU drivers may not be loaded."
-    exit 1
+    echo -e "${YELLOW}Note: /dev/dri/by-path not found. No DRI-capable GPU driver loaded"
+    echo -e "(normal for NVIDIA-only hosts without nvidia_drm; CUDA does not need DRI).${NC}"
+    echo ""
 fi
 
 for card in /dev/dri/by-path/pci-*-card; do
@@ -85,6 +86,24 @@ for card in /dev/dri/by-path/pci-*-card; do
         echo "  lxc.mount.entry: /dev/dri/by-path/pci-${pci_addr}-render dev/dri/renderD128 none bind,optional,create=file"
         echo ""
     fi
+done
+
+# NVIDIA GPUs without DRI nodes (nvidia_drm not loaded) - CUDA only needs /dev/nvidia*
+lspci -nn -D | grep -E "VGA|3D|Display" | grep -i nvidia | while read -r line; do
+    pci_addr=$(echo "$line" | cut -d' ' -f1)
+    [ -e "/dev/dri/by-path/pci-${pci_addr}-card" ] && continue
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo -e "PCI Address: $pci_addr [${GREEN}NVIDIA${NC}]"
+    echo "Description:$(echo "$line" | cut -d: -f3-)"
+    echo "Current Mapping:"
+    echo "  Card:   N/A (no /dev/dri node - nvidia_drm not loaded, fine for CUDA)"
+    echo "  Render: N/A"
+    echo ""
+    echo "Use in LXC config:"
+    echo "  lxc.mount.entry: /dev/nvidia0 dev/nvidia0 none bind,optional,create=file"
+    echo "  lxc.mount.entry: /dev/nvidiactl dev/nvidiactl none bind,optional,create=file"
+    echo "  lxc.mount.entry: /dev/nvidia-uvm dev/nvidia-uvm none bind,optional,create=file"
+    echo ""
 done
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

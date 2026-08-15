@@ -69,21 +69,24 @@ else
     # Show NVIDIA GPUs with full domain:bus:device.function format
     lspci -nn -D | grep -i nvidia | grep -i "VGA\|3D\|Display" && echo "" || echo "No NVIDIA GPUs found"
     
+    # NVIDIA GPUs usually have no /dev/dri entry (nvidia_drm not loaded), so
+    # detect via lspci instead of DRI by-path symlinks. CUDA only needs /dev/nvidia*.
     echo "Available NVIDIA GPU PCI paths:"
-    for card in /dev/dri/by-path/pci-*-card; do
+    while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        pci_addr=$(echo "$line" | awk '{print $1}')
+        card="/dev/dri/by-path/pci-${pci_addr}-card"
         if [ -e "$card" ]; then
-            pci_addr=$(basename "$card" | sed 's/pci-\(.*\)-card/\1/')
-            gpu_info=$(lspci -s "${pci_addr#0000:}" 2>/dev/null | grep -i "VGA\|3D\|Display" || echo "")
-            if echo "$gpu_info" | grep -qi nvidia; then
-                echo "  $pci_addr -> $(ls -l "$card" | awk '{print $NF}') (NVIDIA)"
-                echo "    $gpu_info"
-                # Set default to first NVIDIA GPU found
-                if [ -z "$TEMPLATE_FIRST_PCI_PATH" ]; then
-                    TEMPLATE_FIRST_PCI_PATH="$pci_addr"
-                fi
-            fi
+            echo "  $pci_addr -> $(ls -l "$card" | awk '{print $NF}') (NVIDIA)"
+        else
+            echo "  $pci_addr (NVIDIA, no /dev/dri entry - fine for CUDA)"
         fi
-    done
+        echo "    $line"
+        # Set default to first NVIDIA GPU found
+        if [ -z "$TEMPLATE_FIRST_PCI_PATH" ]; then
+            TEMPLATE_FIRST_PCI_PATH="$pci_addr"
+        fi
+    done < <(lspci -nn -D | grep -i "VGA\|3D\|Display" | grep -i nvidia)
     echo ""
 fi
 
@@ -104,13 +107,26 @@ fi
 CARD_PATH="/dev/dri/by-path/pci-${PCI_ADDRESS}-card"
 RENDER_PATH="/dev/dri/by-path/pci-${PCI_ADDRESS}-render"
 
-if [ ! -e "$CARD_PATH" ]; then
-    echo -e "${RED}Error: $CARD_PATH does not exist${NC}"
-    exit 1
-fi
-if [ ! -e "$RENDER_PATH" ]; then
-    echo -e "${RED}Error: $RENDER_PATH does not exist${NC}"
-    exit 1
+if [ "$GPU_TYPE" == "1" ]; then
+    # AMD requires DRI devices (ROCm uses card/render nodes)
+    if [ ! -e "$CARD_PATH" ]; then
+        echo -e "${RED}Error: $CARD_PATH does not exist${NC}"
+        exit 1
+    fi
+    if [ ! -e "$RENDER_PATH" ]; then
+        echo -e "${RED}Error: $RENDER_PATH does not exist${NC}"
+        exit 1
+    fi
+else
+    # NVIDIA: validate the PCI address exists, DRI nodes are optional
+    if ! lspci -D -s "$PCI_ADDRESS" 2>/dev/null | grep -qi nvidia; then
+        echo -e "${RED}Error: No NVIDIA device found at PCI address $PCI_ADDRESS${NC}"
+        exit 1
+    fi
+    if [ ! -e "$CARD_PATH" ] || [ ! -e "$RENDER_PATH" ]; then
+        echo -e "${YELLOW}Note: No /dev/dri nodes for $PCI_ADDRESS (nvidia_drm not loaded).${NC}"
+        echo -e "${YELLOW}DRI mounts are optional; CUDA/Ollama only need /dev/nvidia* devices.${NC}"
+    fi
 fi
 
 if [ "$GPU_TYPE" == "1" ]; then
