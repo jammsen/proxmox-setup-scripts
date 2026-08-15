@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
-# SCRIPT_DESC: Create AMD GPU-enabled LXC container (old-only-amd-version)
+# SCRIPT_DESC: Create AMD GPU-enabled PRIVILEGED LXC container (legacy, old-only-amd-version, less secure - see 032)
 # SCRIPT_DETECT: 
+
+echo "Note: This creates a privileged LXC container."
+echo "Privileged containers give the GPU direct access, which makes setup easy,"
+echo "but the container is less isolated or secured from the Proxmox host than an"
+echo "unprivileged one. This is fine for a trusted home lab. If you want the"
+echo "more isolated option, use script 032 (unprivileged container) instead."
+echo ""
+read -r -p "Continue with a privileged container? [Y/n]: " ACK_PRIV
+[[ "${ACK_PRIV:-Y}" =~ ^[Yy]$ ]] || { echo "Cancelled."; exit 0; }
+echo ""
 
 # Prompt for container ID with default value of 100
 read -r -p "Enter container ID [100]: " CONTAINER_ID

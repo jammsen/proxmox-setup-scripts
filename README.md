@@ -101,13 +101,19 @@ Installs: `curl`, `git`, `gpg`, `htop`, `iperf3`, `lshw`, `mc`, `s-tui`, `unzip`
 ./007 - setup-udev-gpu-rules.sh
 ```
 
-Creates udev rules for consistent GPU device permissions and persistent PCI-based paths.
+Creates udev rules for consistent GPU device permissions on the host. Optional: the container
+scripts (030/031/032) work without it.
 
 #### Step 5: Create GPU-Enabled LXC Container
 
 ```bash
 ./031 - create-gpu-lxc.sh
 ```
+
+> **Note:** 030 and 031 create *privileged* containers. That makes GPU access simple and is fine
+> for a trusted home lab, but the container is less isolated or secured from the Proxmox host. If you want
+> better isolation, use script 032 instead, which creates an *unprivileged* container with the same
+> wizard.
 
 This interactive script will:
 1. Prompt you to select GPU type (AMD or NVIDIA)
@@ -174,8 +180,9 @@ proxmox-setup-scripts/
 │   ├── 005 - verify-amd-drivers.sh       # Verify AMD driver installation
 │   ├── 006 - verify-nvidia-drivers.sh    # Verify NVIDIA driver installation
 │   ├── 007 - setup-udev-gpu-rules.sh     # Setup GPU device permissions
-│   ├── 030 - create-amd-lxc.sh           # (Legacy) AMD-only LXC creation
-│   ├── 031 - create-gpu-lxc.sh           # Create GPU-enabled LXC (AMD/NVIDIA)
+│   ├── 030 - create-amd-lxc.sh           # (Legacy) AMD-only privileged LXC creation
+│   ├── 031 - create-gpu-lxc.sh           # Create GPU-enabled privileged LXC (AMD/NVIDIA)
+│   ├── 032 - create-gpu-lxc-unprivileged.sh # Create GPU-enabled unprivileged LXC (AMD/NVIDIA)
 │   └── 999 - upgrade-proxmox.sh          # Upgrade Proxmox to latest version
 │
 ├── lxc/                       # Scripts to run inside LXC containers
@@ -183,7 +190,8 @@ proxmox-setup-scripts/
 │   └── install-docker-and-amd-drivers-in-lxc.sh     # Docker + AMD setup
 │
 ├── includes/                  # Shared libraries
-│   └── colors.sh             # Color definitions for terminal output
+│   ├── colors.sh             # Color definitions for terminal output
+│   └── gpu-verify.sh         # Shared in-container GPU device check (031/032)
 │
 └── README.md                 # This file
 ```
@@ -252,8 +260,9 @@ Progress: 3 steps completed
 
 === LXC Container Scripts (030-099) ===
 
-  [030]: Create AMD GPU-enabled LXC container (old-only-amd-version)
-  [031]: Create GPU-enabled LXC container (AMD or NVIDIA or BOTH)
+  [030]: Create AMD GPU-enabled LXC container (privileged, legacy AMD-only version)
+  [031]: Create GPU-enabled LXC container (privileged, AMD or NVIDIA)
+  [032]: Create GPU-enabled LXC container (unprivileged, AMD or NVIDIA)
 
 === System Maintenance (999) ===
 
@@ -283,9 +292,10 @@ Enter your choice [all]:
 | **004** | Install NVIDIA CUDA drivers | Required for NVIDIA GPU support |
 | **005** | Verify AMD driver installation | After installing AMD drivers |
 | **006** | Verify NVIDIA driver installation | After installing NVIDIA drivers |
-| **007** | Setup udev GPU rules | Required - ensures persistent device permissions |
-| **030** | Create AMD-only LXC container | Legacy - use script 031 instead |
-| **031** | Create GPU-enabled LXC container | **Main script** - supports AMD and NVIDIA |
+| **007** | Setup udev GPU rules | Optional - host-side device permissions, not required by 030/031/032 |
+| **030** | Create AMD-only LXC container (privileged) | Legacy - use 031 or 032 instead |
+| **031** | Create GPU-enabled LXC container (privileged) | AMD and NVIDIA. Easy setup; container is less isolated or secured from the host |
+| **032** | Create GPU-enabled LXC container (unprivileged) | **Recommended** - AMD and NVIDIA, better isolated from the host (Proxmox device passthrough, Needs PVE 8.1+) |
 | **999** | Upgrade Proxmox to latest version | Maintenance - keeps system up to date |
 
 ### LXC Scripts (Run Inside Containers)

@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# SCRIPT_DESC: Create GPU-enabled LXC container (privileged, AMD or NVIDIA)
+# SCRIPT_DESC: Create GPU-enabled LXC container (unprivileged, AMD or NVIDIA)
 # SCRIPT_DETECT: 
 
-# Enhanced LXC GPU container creation script with automatic GPU detection
-# This script ensures correct GPU mapping using persistent PCI paths
+# Unprivileged variant of 031: same wizard, but the container runs with UID mapping,
+# keyctl=1,nesting=1 (needed for Docker) and Proxmox dev[n] device passthrough instead
+# of raw cgroup/mount lines and an unconfined AppArmor profile.
+# dev[n] creates its own device nodes with the given gid/mode inside the container
+# (PVE >= 8.1), so host-side udev rules (script 007) are not needed.
 
 set -e
 
@@ -15,14 +18,10 @@ source "${SCRIPT_DIR}/../includes/colors.sh"
 source "${SCRIPT_DIR}/../includes/gpu-verify.sh"
 
 
-echo -e "${YELLOW}Note: This creates a privileged LXC container.${NC}"
-echo "Privileged containers give the GPU direct access, which makes setup easy,"
-echo "but the container is less isolated or secured from the Proxmox host than an"
-echo "unprivileged one. This is fine for a trusted home lab. If you want the"
-echo "more isolated option, use script 032 (unprivileged container) instead."
-echo ""
-read -r -p "Continue with a privileged container? [Y/n]: " ACK_PRIV
-[[ "${ACK_PRIV:-Y}" =~ ^[Yy]$ ]] || { echo "Cancelled."; exit 0; }
+echo -e "${YELLOW}Note: This creates an unprivileged LXC container.${NC}"
+echo "Unprivileged containers are better isolated and secured from the Proxmox host"
+echo "than privileged ones (scripts 030/031). GPU devices are passed through with"
+echo "Proxmox's built-in device passthrough (dev0, dev1, ...)."
 echo ""
 
 # Prompt for container ID
@@ -247,7 +246,7 @@ echo -e "${GREEN}>>> Creating LXC container with GPU passthrough support${NC}"
 pct create "$CONTAINER_ID" "local:vztmpl/${LXC_TEMPLATE}" \
     --arch amd64 \
     --cores 8 \
-    --features nesting=1 \
+    --features keyctl=1,nesting=1 \
     --hostname "$HOSTNAME" \
     --memory 8192 \
     --net0 "name=eth0,bridge=vmbr0,firewall=1,gw=$GATEWAY,hwaddr=$MAC_ADDRESS,ip=$IP_ADDRESS/24,type=veth" \
@@ -256,64 +255,57 @@ pct create "$CONTAINER_ID" "local:vztmpl/${LXC_TEMPLATE}" \
     --rootfs local-zfs:160 \
     --swap 4096 \
     --tags "docker;ollama;${ADDITIONAL_TAGS}" \
-    --unprivileged 0
+    --unprivileged 1
 
 echo -e "${GREEN}>>> Added LXC container with ID $CONTAINER_ID${NC}"
 
-# Configure GPU passthrough based on type
+# Configure GPU passthrough via Proxmox device passthrough (dev[n]).
+# Unlike 030/031 no cgroup allow lines, bind mounts or unconfined AppArmor are needed;
+# pct handles the UID/GID mapping for the device nodes.
+DEV_INDEX=0
+add_dev() {
+    # $1 = host device path, $2 = extra options (e.g. gid=44,mode=0660), skips missing devices
+    if [ -e "$1" ]; then
+        pct set "$CONTAINER_ID" "--dev${DEV_INDEX}" "$1${2:+,$2}"
+        echo "  dev${DEV_INDEX}: $1${2:+ ($2)}"
+        DEV_INDEX=$((DEV_INDEX+1))
+    fi
+}
+
 if [ "$GPU_TYPE" == "1" ]; then
-    # AMD GPU Configuration
+    # AMD: DRI card/render + KFD, owned by the container's video/render groups so the
+    # in-container install script's 'usermod -aG render,video root' gives access.
+    echo -e "${GREEN}>>> Starting container once to read video/render group IDs${NC}"
+    pct start "$CONTAINER_ID"
+    sleep 5
+    VIDEO_GID=$(pct exec "$CONTAINER_ID" -- getent group video | cut -d: -f3)
+    RENDER_GID=$(pct exec "$CONTAINER_ID" -- getent group render | cut -d: -f3 || true)
+    if [ -z "$RENDER_GID" ]; then
+        pct exec "$CONTAINER_ID" -- groupadd -r render
+        RENDER_GID=$(pct exec "$CONTAINER_ID" -- getent group render | cut -d: -f3)
+    fi
+    pct stop "$CONTAINER_ID"
+    echo "  video group: $VIDEO_GID, render group: $RENDER_GID"
+
     echo -e "${GREEN}>>> Configuring AMD GPU passthrough${NC}"
-    
-    cat >> "/etc/pve/lxc/${CONTAINER_ID}.conf" << EOF
-# ===== AMD GPU Passthrough Configuration =====
-# PCI Address: $PCI_ADDRESS
-# Using persistent by-path device names to ensure consistent mapping
-# Allow access to cgroup devices (DRI and KFD)
-lxc.cgroup2.devices.allow: c 226:* rwm
-lxc.cgroup2.devices.allow: c 235:* rwm
-# Mount DRI devices using persistent PCI paths
-lxc.mount.entry: /dev/dri/by-path/pci-${PCI_ADDRESS}-card dev/dri/card0 none bind,optional,create=file
-lxc.mount.entry: /dev/dri/by-path/pci-${PCI_ADDRESS}-render dev/dri/renderD128 none bind,optional,create=file
-# Mount KFD device (ROCm compute interface - required for ROCm)
-lxc.mount.entry: /dev/kfd dev/kfd none bind,optional,create=file
-# Allow system-level capabilities for GPU drivers
-lxc.apparmor.profile: unconfined
-lxc.cap.drop:
-# ===== End GPU Configuration =====
-EOF
+    # dev[n] recreates the node at the same path inside the container, so pass the real
+    # /dev/dri/cardN + renderDN nodes (resolved from the persistent by-path link) - ROCm/libdrm
+    # look for those names, not for the by-path name.
+    add_dev "$(readlink -f "$CARD_PATH")"   "gid=${VIDEO_GID},mode=0660"
+    add_dev "$(readlink -f "$RENDER_PATH")" "gid=${RENDER_GID},mode=0660"
+    add_dev /dev/kfd                        "gid=${RENDER_GID},mode=0660"
 else
-    # NVIDIA GPU Configuration
+    # NVIDIA: CUDA devices world-RW like the driver creates them on the host; DRI/modeset/caps only if present
     echo -e "${GREEN}>>> Configuring NVIDIA GPU passthrough${NC}"
-    
-    cat >> "/etc/pve/lxc/${CONTAINER_ID}.conf" << EOF
-# ===== NVIDIA GPU Passthrough Configuration =====
-# PCI Address: $PCI_ADDRESS
-# Allow access to cgroup devices (NVIDIA and DRI)
-lxc.cgroup2.devices.allow: c 195:* rwm
-lxc.cgroup2.devices.allow: c 226:* rwm
-lxc.cgroup2.devices.allow: c 234:* rwm
-lxc.cgroup2.devices.allow: c 237:* rwm
-lxc.cgroup2.devices.allow: c 238:* rwm
-lxc.cgroup2.devices.allow: c 239:* rwm
-lxc.cgroup2.devices.allow: c 240:* rwm
-lxc.cgroup2.devices.allow: c 508:* rwm
-# Mount NVIDIA devices
-lxc.mount.entry: /dev/nvidia0 dev/nvidia0 none bind,optional,create=file
-lxc.mount.entry: /dev/nvidiactl dev/nvidiactl none bind,optional,create=file
-lxc.mount.entry: /dev/nvidia-modeset dev/nvidia-modeset none bind,optional,create=file
-lxc.mount.entry: /dev/nvidia-uvm dev/nvidia-uvm none bind,optional,create=file
-lxc.mount.entry: /dev/nvidia-uvm-tools dev/nvidia-uvm-tools none bind,optional,create=file
-lxc.mount.entry: /dev/nvidia-caps/nvidia-cap1 dev/nvidia-caps/nvidia-cap1 none bind,optional,create=file
-lxc.mount.entry: /dev/nvidia-caps/nvidia-cap2 dev/nvidia-caps/nvidia-cap2 none bind,optional,create=file
-# Mount DRI devices using persistent PCI paths
-lxc.mount.entry: /dev/dri/by-path/pci-${PCI_ADDRESS}-card dev/dri/card0 none bind,optional,create=file
-lxc.mount.entry: /dev/dri/by-path/pci-${PCI_ADDRESS}-render dev/dri/renderD128 none bind,optional,create=file
-# Allow system-level capabilities for GPU drivers
-lxc.apparmor.profile: unconfined
-lxc.cap.drop:
-# ===== End GPU Configuration =====
-EOF
+    add_dev /dev/nvidia0            "mode=0666"
+    add_dev /dev/nvidiactl          "mode=0666"
+    add_dev /dev/nvidia-uvm         "mode=0666"
+    add_dev /dev/nvidia-uvm-tools   "mode=0666"
+    add_dev /dev/nvidia-modeset     "mode=0666"
+    add_dev /dev/nvidia-caps/nvidia-cap1 "mode=0444"
+    add_dev /dev/nvidia-caps/nvidia-cap2 "mode=0444"
+    [ -e "$CARD_PATH" ]   && add_dev "$(readlink -f "$CARD_PATH")"   "mode=0666"
+    [ -e "$RENDER_PATH" ] && add_dev "$(readlink -f "$RENDER_PATH")" "mode=0666"
 fi
 
 echo -e "${GREEN}>>> Starting container${NC}"
@@ -349,6 +341,9 @@ read -r -p "Verify GPU devices inside the container now? [Y/n]: " RUN_VERIFY
 RUN_VERIFY=${RUN_VERIFY:-Y}
 if [[ "$RUN_VERIFY" =~ ^[Yy]$ ]]; then
     verify_gpu_in_container "$CONTAINER_ID" "$GPU_TYPE"
+    echo "If required devices are missing, check the host devices (ls -la /dev/dri /dev/kfd /dev/nvidia*)"
+    echo "and the dev0..devN entries in /etc/pve/lxc/${CONTAINER_ID}.conf"
+    echo ""
 else
     echo "You can verify manually later:"
     echo "  pct exec $CONTAINER_ID -- ls -la /dev/dri/ /dev/kfd /dev/nvidia*"
