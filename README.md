@@ -326,9 +326,13 @@ Enter your choice [all]:
 | `amd/ollama/` | Ollama on ROCm, incl. APU-optimised image variants | AMD |
 | `amd/vllm/` | vLLM (AMD's `rocm/vllm` RDNA image, OpenAI-compatible API on port 8000). Model and memory settings are plain values at the top of the file - default is Qwen3 4B Thinking (Q4_K_M GGUF, ~2.5 GB) which fits any GPU | AMD |
 
+The scripts directory is mounted read-only inside the containers, so copy an example somewhere writable
+before editing it:
+
 ```bash
-cd /root/proxmox-setup-scripts/docker-compose-testing-examples/amd/vllm
-docker compose up -d          # edit VLLM_MODEL etc. in compose.yml first if you want another model
+cp -r /root/proxmox-setup-scripts/docker-compose-testing-examples/amd/vllm /opt/vllm && cd /opt/vllm
+nano compose.yml              # pick model option 1/2, adjust memory settings if needed
+RENDER_GID=$(getent group render | cut -d: -f3) docker compose up -d
 docker logs -f vllm-rocm      # first start downloads the model into /opt/llm-models/huggingface
 curl http://localhost:8000/v1/models
 ```

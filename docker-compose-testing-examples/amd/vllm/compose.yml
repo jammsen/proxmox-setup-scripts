@@ -8,6 +8,13 @@
 # below, change them right here in the file. For anything beyond testing, split configuration and
 # secrets the way you normally do with compose.
 #
+# The scripts directory is mounted read-only into the container, so copy this folder somewhere
+# writable before editing, e.g.:  cp -r /root/proxmox-setup-scripts/docker-compose-testing-examples/amd/vllm /opt/vllm && cd /opt/vllm
+#
+# Start it with the gid of the "render" group of this container (owns /dev/kfd and /dev/dri/renderD*;
+# the number differs between containers, that is why it is passed in):
+#   RENDER_GID=$(getent group render | cut -d: -f3) docker compose up -d
+#
 #   VLLM_MODEL / VLLM_TOKENIZER   Pick one of the two prepared options below (comment one in, one out):
 #     Option 1 (default): Qwen3 4B Thinking as Q4_K_M GGUF from unsloth - about 2.5 GB of GPU memory, fits
 #                         any GPU. GGUF models are given as "repo:QUANT" and need VLLM_TOKENIZER pointing to
@@ -52,7 +59,7 @@ services:
             - VLLM_GPU_MEMORY_UTILIZATION=0.85
         group_add:
             - video
-            - "993"   # gid of the "render" group inside this LXC: getent group render
+            - "${RENDER_GID:-993}"   # gid of the "render" group inside this LXC: getent group render
         cap_add:
             - SYS_PTRACE
         security_opt:
