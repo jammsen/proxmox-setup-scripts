@@ -162,7 +162,9 @@ echo -e "${GREEN}Using ROCm ${YELLOW}${ROCM_VER}${NC}"
 
 echo -e "${GREEN}>>> Installing ROCm runtime and tools...${NC}"
 echo "Packages: amdrocm-runtime${ROCM_VER} (HIP/HSA runtime), amdrocm-base${ROCM_VER} (rocminfo, rocm-smi), amdrocm-amdsmi${ROCM_VER} (amd-smi)"
-apt install -y "amdrocm-runtime${ROCM_VER}" "amdrocm-base${ROCM_VER}" "amdrocm-amdsmi${ROCM_VER}"
+# --no-install-recommends: the LLVM package "recommends" gcc/g++/multilib, which are only needed for
+# compiling HIP code in the container - not for running Docker images or the tools.
+apt install -y --no-install-recommends "amdrocm-runtime${ROCM_VER}" "amdrocm-base${ROCM_VER}" "amdrocm-amdsmi${ROCM_VER}"
 
 # Optional: the full ROCm library set for this GPU (BLAS, DNN, FFT, ... - for building/running
 # HIP applications directly in the container instead of in Docker images)
@@ -204,14 +206,23 @@ echo -e "${GREEN}==========================================${NC}"
 echo ""
 which rocm-smi rocminfo nvtop radeontop
 rocminfo | grep -i -A5 'Agent [0-9]'
+# rocm-smi without arguments = the nvidia-smi style overview (temperature, power, clocks, fan, perf level, memory, load)
+rocm-smi
 rocm-smi --showmemuse --showuse --showmeminfo all --showhw --showproductname
 # amd-smi is the newer AMD management tool (successor of rocm-smi) - a second, independent view on the GPU
 if command -v amd-smi >/dev/null 2>&1; then
     echo ""
     echo -e "${GREEN}>>> amd-smi (newer management tool, successor of rocm-smi):${NC}"
     amd-smi list 2>&1 || true
-    amd-smi metric --mem-usage 2>&1 || true
+    amd-smi metric --mem-usage --power --clock --temperature 2>&1 || true
 fi
+echo ""
+echo -e "${GREEN}Monitoring (the AMD equivalents of nvidia-smi):${NC}"
+echo "  rocm-smi                                 one-shot overview: temperature, power, clocks, fan, perf level, memory, load"
+echo "  amd-smi monitor -p -t -g -m -w 1         live view refreshed every second (power, temperature, gfx clock/util, memory)"
+echo "  amd-smi metric --power --clock           detailed power and clock (DPM) state"
+echo "  nvtop                                    interactive graphs"
+echo "  Note: on APUs like the Radeon 890M some power values can be N/A - the GPU shares the SoC power rail with the CPU."
 
 # Verify installation
 echo ""
@@ -228,7 +239,7 @@ echo ""
 RENDER_GID=$(getent group render | cut -d: -f3)
 VIDEO_GID=$(getent group video | cut -d: -f3)
 ROCM_TEST_IMAGE="rocm/dev-ubuntu-24.04:7.2.4"
-ROCM_TEST_CMD="docker run --rm --name rocm-smi-test --device /dev/kfd --device /dev/dri --group-add ${VIDEO_GID:-44} --group-add ${RENDER_GID:-993} --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --ipc=host ${ROCM_TEST_IMAGE} bash -c \"rocm-smi --showmemuse --showuse --showmeminfo all --showhw --showproductname && rocminfo | grep -i -A5 'Agent [0-9]' && { command -v amd-smi >/dev/null && amd-smi list && amd-smi metric --mem-usage || echo 'amd-smi not in this image - skipped'; }\""
+ROCM_TEST_CMD="docker run --rm --name rocm-smi-test --device /dev/kfd --device /dev/dri --group-add ${VIDEO_GID:-44} --group-add ${RENDER_GID:-993} --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --ipc=host ${ROCM_TEST_IMAGE} bash -c \"rocm-smi && rocm-smi --showmemuse --showmeminfo all --showproductname && rocminfo | grep -i -A5 'Agent [0-9]' && { command -v amd-smi >/dev/null && amd-smi list && amd-smi metric --mem-usage --power --clock --temperature || echo 'amd-smi not in this image - skipped'; }\""
 
 echo -e "${YELLOW}Test 1: ROCm Info and SMI test${NC}"
 echo -e "${YELLOW}Image: ${ROCM_TEST_IMAGE} (~1.2GB)${NC}"
