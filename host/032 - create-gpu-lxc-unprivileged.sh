@@ -472,7 +472,7 @@ fi
 
 if [ "$GPU_TYPE" == "1" ]; then
     # AMD GPU Configuration
-    read -r -p "Install Docker and AMD ROCm libraries now? [Y/n]: " RUN_INSTALL
+    read -r -p "Install Docker and the AMD ROCm runtime now? [Y/n]: " RUN_INSTALL
     RUN_INSTALL=${RUN_INSTALL:-Y}
     
     if [[ "$RUN_INSTALL" =~ ^[Yy]$ ]]; then

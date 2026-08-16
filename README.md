@@ -192,6 +192,14 @@ proxmox-setup-scripts/
 │   ├── colors.sh             # Color definitions for terminal output
 │   └── gpu-verify.sh         # Shared in-container GPU device check (031/032)
 │
+├── docker-compose-testing-examples/   # Ready-to-run compose files for inside the containers
+│   ├── amd/
+│   │   ├── ollama/           # Ollama on ROCm (several image variants for APUs)
+│   │   └── vllm/             # vLLM on ROCm (RDNA / Ryzen AI, OpenAI-compatible API)
+│   └── nvidia/
+│       ├── ollama/           # Ollama on CUDA
+│       └── ollama-multi-gpu/ # Ollama across several NVIDIA GPUs
+│
 └── README.md                 # This file
 ```
 
@@ -304,7 +312,26 @@ Enter your choice [all]:
 | `install-docker-and-nvidia-drivers-in-lxc.sh` | Installs Docker, NVIDIA libraries, and NVIDIA Container Toolkit | NVIDIA |
 | `install-docker-and-amd-drivers-in-lxc.sh` | Installs Docker and the AMD ROCm runtime (ROCm 7.14+ from repo.amd.com, per-GPU packages; runtime only by default, full libraries optional) | AMD |
 
-**Note:** These scripts are automatically available at `/root/proxmox-setup-scripts/lxc/` inside containers created with script 031.
+**Note:** These scripts are automatically available at `/root/proxmox-setup-scripts/lxc/` inside containers created with script 031/032.
+
+### Docker Compose Examples (Run Inside Containers)
+
+`docker-compose-testing-examples/` holds ready-to-run compose files. They all use the shared model directory
+`/opt/llm-models` that 031/032 can mount from the host, so models are downloaded once.
+
+| Directory | What it runs | GPU Type |
+|-----------|--------------|----------|
+| `nvidia/ollama/` | Ollama (`ollama/ollama`) on CUDA | NVIDIA |
+| `nvidia/ollama-multi-gpu/` | Ollama spread over several NVIDIA GPUs | NVIDIA |
+| `amd/ollama/` | Ollama on ROCm, incl. APU-optimised image variants | AMD |
+| `amd/vllm/` | vLLM (AMD's `rocm/vllm` RDNA image, OpenAI-compatible API on port 8000). Model and memory settings are plain values at the top of the file - default is Qwen3 4B Thinking (Q4_K_M GGUF, ~2.5 GB) which fits any GPU | AMD |
+
+```bash
+cd /root/proxmox-setup-scripts/docker-compose-testing-examples/amd/vllm
+docker compose up -d          # edit VLLM_MODEL etc. in compose.yml first if you want another model
+docker logs -f vllm-rocm      # first start downloads the model into /opt/llm-models/huggingface
+curl http://localhost:8000/v1/models
+```
 
 ---
 
