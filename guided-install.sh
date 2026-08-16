@@ -21,6 +21,7 @@ touch "$PROGRESS_FILE"
 # Associative arrays to store script metadata
 declare -A SCRIPT_DESCRIPTIONS
 declare -A SCRIPT_DETECT_CMDS
+declare -A SCRIPT_RETIRED
 declare -a SCRIPT_NUMS
 
 # Function to extract metadata from script header
@@ -33,11 +34,15 @@ extract_script_metadata() {
     local desc detect_cmd
     desc=$(grep '^# SCRIPT_DESC:' "$script_path" 2>/dev/null | sed 's/^# SCRIPT_DESC: //')
     detect_cmd=$(grep '^# SCRIPT_DETECT:' "$script_path" 2>/dev/null | sed 's/^# SCRIPT_DETECT: //')
+    # SCRIPT_RETIRED: 1 marks a script that only prints a notice (kept so the number stays known)
+    local retired
+    retired=$(grep '^# SCRIPT_RETIRED:' "$script_path" 2>/dev/null | sed 's/^# SCRIPT_RETIRED: //')
     
     # Store in arrays
     SCRIPT_NUMS+=("$script_num")
     SCRIPT_DESCRIPTIONS["$script_num"]="$desc"
     SCRIPT_DETECT_CMDS["$script_num"]="$detect_cmd"
+    SCRIPT_RETIRED["$script_num"]="${retired:-0}"
 }
 
 # Function to discover and load all scripts
@@ -131,6 +136,12 @@ display_script() {
     local description
     description=$(get_script_description "$script_num" "$script_name")
     
+    # Retired scripts are only a notice - no completion status
+    if [ "${SCRIPT_RETIRED[$script_num]}" == "1" ]; then
+        echo -e "  [${script_num}]: ${description}"
+        return
+    fi
+
     # Check completion status
     local status=""
     if is_completed "$script_num"; then
@@ -160,6 +171,12 @@ run_script() {
     echo -e "${GREEN}========================================${NC}"
     echo ""
     
+    # Retired scripts only print a notice - nothing to complete or fail
+    if [ "${SCRIPT_RETIRED[$script_num]}" == "1" ]; then
+        bash "$script_path" < /dev/tty
+        return 0
+    fi
+
     if bash "$script_path" < /dev/tty; then
         mark_completed "$script_num"
         echo ""

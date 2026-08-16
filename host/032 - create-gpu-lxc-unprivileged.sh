@@ -20,7 +20,7 @@ source "${SCRIPT_DIR}/../includes/gpu-verify.sh"
 
 echo -e "${YELLOW}Note: This creates an unprivileged LXC container.${NC}"
 echo "Unprivileged containers are better isolated and secured from the Proxmox host"
-echo "than privileged ones (scripts 030/031). GPU devices are passed through with"
+echo "than privileged ones (script 031). GPU devices are passed through with"
 echo "Proxmox's built-in device passthrough (dev0, dev1, ...)."
 echo ""
 
@@ -203,6 +203,44 @@ GW_TEMPLATE="10.0.0.1"
 read -r -p "Enter gateway [$GW_TEMPLATE]: " GATEWAY
 GATEWAY=${GATEWAY:-$GW_TEMPLATE}
 
+# Container resources (cores/RAM/swap are fixed defaults, disk size and storage are asked below)
+CT_CORES=8
+CT_MEMORY_MB=8192
+CT_SWAP_MB=4096
+
+# Storage for the container disk: default to local-zfs if it exists, otherwise the first
+# storage that can hold container root disks
+STORAGE_LIST=$(pvesm status --content rootdir 2>/dev/null | awk 'NR>1 && $3=="active" {print $1}')
+if echo "$STORAGE_LIST" | grep -qx "local-zfs"; then
+    STORAGE_TEMPLATE="local-zfs"
+else
+    STORAGE_TEMPLATE=$(echo "$STORAGE_LIST" | head -1)
+fi
+echo ""
+echo "Storages available for container disks:"
+pvesm status --content rootdir 2>/dev/null | awk 'NR==1 || $3=="active"' | awk '{printf "  %-16s %-10s free: %6.1f GB of %6.1f GB\n", $1, $2, $6/1024/1024, $4/1024/1024}' | sed '1s/.*/  (name  type  free \/ total)/'
+read -r -p "Enter storage for the container disk [$STORAGE_TEMPLATE]: " CT_STORAGE
+CT_STORAGE=${CT_STORAGE:-$STORAGE_TEMPLATE}
+if ! echo "$STORAGE_LIST" | grep -qx "$CT_STORAGE"; then
+    echo -e "${RED}Error: storage '$CT_STORAGE' not found or cannot hold container disks${NC}"
+    exit 1
+fi
+
+echo ""
+echo "Disk size for the container. The base system with Docker and the NVIDIA libraries needs"
+echo "about 2 GB, the full AMD ROCm stack about 20 GB - the rest is for your models and data."
+read -r -p "Enter container disk size in GB [75]: " CT_DISK_GB
+CT_DISK_GB=${CT_DISK_GB:-75}
+if ! [[ "$CT_DISK_GB" =~ ^[0-9]+$ ]] || [ "$CT_DISK_GB" -lt 8 ]; then
+    echo -e "${RED}Error: disk size must be a whole number of GB (at least 8)${NC}"
+    exit 1
+fi
+STORAGE_FREE_GB=$(pvesm status --storage "$CT_STORAGE" 2>/dev/null | awk 'NR==2 {printf "%d", $6/1024/1024}')
+if [ -n "$STORAGE_FREE_GB" ] && [ "$STORAGE_FREE_GB" -lt "$CT_DISK_GB" ]; then
+    echo -e "${YELLOW}Note: $CT_STORAGE has only ${STORAGE_FREE_GB} GB free, less than the ${CT_DISK_GB} GB disk.${NC}"
+    echo -e "${YELLOW}Thin-provisioned storage (ZFS/LVM-thin) will still work, but the container can run out of space later.${NC}"
+fi
+
 # Generate random MAC address
 MAC_ADDRESS=$(printf 'BC:24:11:%02X:%02X:%02X\n' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)))
 
@@ -215,6 +253,8 @@ echo "IP Address: $IP_ADDRESS"
 echo "Gateway: $GATEWAY"
 echo "Hostname: $HOSTNAME"
 echo "MAC Address: $MAC_ADDRESS"
+echo "Resources: ${CT_CORES} cores, $((CT_MEMORY_MB/1024)) GB RAM, $((CT_SWAP_MB/1024)) GB swap"
+echo "Disk: ${CT_DISK_GB} GB on ${CT_STORAGE}${STORAGE_FREE_GB:+ (${STORAGE_FREE_GB} GB free)}"
 echo ""
 read -r -p "Proceed with container creation? [Y/n]: " CONFIRM
 CONFIRM=${CONFIRM:-Y}
@@ -245,22 +285,22 @@ pveam download local "$LXC_TEMPLATE" 2>/dev/null || echo "Template already exist
 echo -e "${GREEN}>>> Creating LXC container with GPU passthrough support${NC}"
 pct create "$CONTAINER_ID" "local:vztmpl/${LXC_TEMPLATE}" \
     --arch amd64 \
-    --cores 8 \
+    --cores "$CT_CORES" \
     --features keyctl=1,nesting=1 \
     --hostname "$HOSTNAME" \
-    --memory 8192 \
+    --memory "$CT_MEMORY_MB" \
     --net0 "name=eth0,bridge=vmbr0,firewall=1,gw=$GATEWAY,hwaddr=$MAC_ADDRESS,ip=$IP_ADDRESS/24,type=veth" \
     --ostype ubuntu \
     --password testing \
-    --rootfs local-zfs:160 \
-    --swap 4096 \
+    --rootfs "${CT_STORAGE}:${CT_DISK_GB}" \
+    --swap "$CT_SWAP_MB" \
     --tags "docker;gpu;${ADDITIONAL_TAGS}" \
     --unprivileged 1
 
 echo -e "${GREEN}>>> Added LXC container with ID $CONTAINER_ID${NC}"
 
 # Configure GPU passthrough via Proxmox device passthrough (dev[n]).
-# Unlike 030/031 no cgroup allow lines, bind mounts or unconfined AppArmor are needed;
+# Unlike 031 no cgroup allow lines, bind mounts or unconfined AppArmor are needed;
 # pct handles the UID/GID mapping for the device nodes.
 DEV_INDEX=0
 add_dev() {
@@ -391,6 +431,8 @@ echo ""
 echo "Container ID: $CONTAINER_ID"
 echo "GPU Type: $([ "$GPU_TYPE" == "1" ] && echo "AMD" || echo "NVIDIA")"
 echo "GPU PCI Address: $PCI_ADDRESS"
+echo "Resources: ${CT_CORES} cores, $((CT_MEMORY_MB/1024)) GB RAM, $((CT_SWAP_MB/1024)) GB swap"
+echo "Disk: ${CT_DISK_GB} GB on ${CT_STORAGE}"
 echo "SSH Access: ssh root@$IP_ADDRESS"
 echo "Default Password: testing"
 echo "Scripts mounted at: /root/proxmox-setup-scripts"

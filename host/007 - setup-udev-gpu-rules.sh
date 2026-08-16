@@ -1,44 +1,37 @@
 #!/usr/bin/env bash
-# SCRIPT_DESC: Setup udev rules for GPU device permissions
-# SCRIPT_DETECT: [ -f /etc/udev/rules.d/99-gpu-passthrough.rules ]
+# SCRIPT_DESC: (Retired) udev rules for GPU device permissions - no longer needed by 031/032
+# SCRIPT_DETECT: 
+# SCRIPT_RETIRED: 1
 
-echo ">>> Setting up UDEV rules for persistent GPU device naming"
+# This number is kept on purpose so nobody runs into "script not found" and existing notes stay valid.
+# The original script wrote /etc/udev/rules.d/99-gpu-passthrough.rules to loosen host permissions on
+# /dev/dri, /dev/kfd and /dev/nvidia*. That was only needed for the old way of bind-mounting host device
+# nodes into unprivileged containers. Script 031 (privileged) never needed it and script 032 uses
+# Proxmox device passthrough (dev0, dev1, ...), which creates its own device nodes with the right
+# permissions inside the container. History: git log -- "host/007 - setup-udev-gpu-rules.sh"
 
-cat > /etc/udev/rules.d/99-gpu-passthrough.rules << 'EOF'
-# Allow access to DRI devices for unprivileged LXC containers
-# This rule applies to all card and render devices
-KERNEL=="card[0-9]*", SUBSYSTEM=="drm", MODE="0660", GROUP="video"
-KERNEL=="renderD[0-9]*", SUBSYSTEM=="drm", MODE="0660", GROUP="video"
-KERNEL=="kfd", SUBSYSTEM=="kfd", MODE="0666"
-
-# NVIDIA devices
-KERNEL=="nvidia*", MODE="0666"
-KERNEL=="nvidia-uvm*", MODE="0666"
-KERNEL=="nvidia-modeset", MODE="0666"
-KERNEL=="nvidiactl", MODE="0666"
-EOF
-
-echo ">>> Reloading UDEV rules and triggering changes"
-udevadm control --reload-rules
-udevadm trigger
-
-echo ">>> Verifying UDEV rules for GPU devices"
-ls -la /dev/dri/ /dev/kfd
-echo ">>> Listing should show crw-rw---- root video"
-
+echo "Script 007 has been retired."
 echo ""
-echo ">>> Verifying GPU devices and their PCI paths"
-echo "=== /dev/dri/ devices ==="
-ls -la /dev/dri/
+echo "It used to install udev rules that loosen the GPU device permissions on the Proxmox host."
+echo "The container scripts 031 and 032 no longer need this: 032 uses Proxmox's built-in device"
+echo "passthrough, which sets the permissions inside the container by itself."
 echo ""
-echo "=== Persistent PCI paths (USE THESE FOR LXC MAPPING) ==="
-ls -la /dev/dri/by-path/
-echo ""
-echo "=== KFD device (for AMD ROCm) ==="
-ls -la /dev/kfd 2>/dev/null || echo "KFD not found (normal if no AMD GPU or driver not loaded)"
-echo ""
-echo "=== NVIDIA devices ==="
-ls -la /dev/nvidia* 2>/dev/null || echo "NVIDIA devices not found (normal if no NVIDIA GPU)"
-echo ""
-echo ">>> IMPORTANT: Use the paths from /dev/dri/by-path/ in your LXC configurations"
-echo ">>> These paths are stable and won't change between reboots"
+if [ -f /etc/udev/rules.d/99-gpu-passthrough.rules ]; then
+    echo "The rules file from an earlier run is still present on this host:"
+    echo "  /etc/udev/rules.d/99-gpu-passthrough.rules"
+    echo "It does no harm, but you can remove it and restore the default permissions with:"
+    echo "  rm /etc/udev/rules.d/99-gpu-passthrough.rules && udevadm control --reload-rules && udevadm trigger"
+    echo ""
+    read -r -p "Remove the old rules file now? [y/N]: " REMOVE_RULES
+    if [[ "${REMOVE_RULES:-N}" =~ ^[Yy]$ ]]; then
+        rm -f /etc/udev/rules.d/99-gpu-passthrough.rules
+        udevadm control --reload-rules
+        udevadm trigger
+        echo "Removed. Default device permissions are back in effect."
+    else
+        echo "Left in place."
+    fi
+else
+    echo "No rules file from an earlier run was found on this host - nothing to clean up."
+fi
+exit 0
