@@ -205,9 +205,12 @@ echo ""
 which rocm-smi rocminfo nvtop radeontop
 rocminfo | grep -i -A5 'Agent [0-9]'
 rocm-smi --showmemuse --showuse --showmeminfo all --showhw --showproductname
+# amd-smi is the newer AMD management tool (successor of rocm-smi) - a second, independent view on the GPU
 if command -v amd-smi >/dev/null 2>&1; then
     echo ""
-    amd-smi version 2>/dev/null || true
+    echo -e "${GREEN}>>> amd-smi (newer management tool, successor of rocm-smi):${NC}"
+    amd-smi list 2>&1 || true
+    amd-smi metric --mem-usage 2>&1 || true
 fi
 
 # Verify installation
@@ -218,18 +221,20 @@ echo -e "${GREEN}==========================================${NC}"
 echo ""
 echo -e "${GREEN}>>> Verifying AMD ROCm installation with Docker...${NC}"
 echo ""
-# The rocm/rocm-terminal image runs as a non-root user, so it must be a member of the groups that
-# own /dev/kfd and /dev/dri/renderD* inside this container (render and video; numeric gids because
-# the image may not know these group names). Required in unprivileged containers (script 032).
+# The Docker image brings its own ROCm user-space; the only thing it needs from this container is
+# /dev/kfd and /dev/dri. Processes in the image must be members of the groups that own those nodes
+# here (render and video; numeric gids because the image may not know the group names) - required
+# in unprivileged containers (script 032). Test: rocm-smi + rocminfo, and amd-smi if the image has it.
 RENDER_GID=$(getent group render | cut -d: -f3)
 VIDEO_GID=$(getent group video | cut -d: -f3)
-ROCM_TEST_CMD="docker run --rm --name rocm-smi-test --device /dev/kfd --device /dev/dri -e HSA_OVERRIDE_GFX_VERSION=11.5.1 -e HSA_ENABLE_SDMA=0 --group-add ${VIDEO_GID:-44} --group-add ${RENDER_GID:-993} --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --ipc=host rocm/rocm-terminal bash -c \"rocm-smi --showmemuse --showuse --showmeminfo all --showhw --showproductname && rocminfo | grep -i -A5 'Agent [0-9]'\""
+ROCM_TEST_IMAGE="rocm/dev-ubuntu-24.04:7.2.4"
+ROCM_TEST_CMD="docker run --rm --name rocm-smi-test --device /dev/kfd --device /dev/dri --group-add ${VIDEO_GID:-44} --group-add ${RENDER_GID:-993} --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --ipc=host ${ROCM_TEST_IMAGE} bash -c \"rocm-smi --showmemuse --showuse --showmeminfo all --showhw --showproductname && rocminfo | grep -i -A5 'Agent [0-9]' && { command -v amd-smi >/dev/null && amd-smi list && amd-smi metric --mem-usage || echo 'amd-smi not in this image - skipped'; }\""
 
 echo -e "${YELLOW}Test 1: ROCm Info and SMI test${NC}"
-echo -e "${YELLOW}Image: rocm/rocm-terminal (~1GB)${NC}"
+echo -e "${YELLOW}Image: ${ROCM_TEST_IMAGE} (~1.2GB)${NC}"
 echo -e "${YELLOW}Command: ${ROCM_TEST_CMD}${NC}"
 echo ""
-read -r -p "Run Test 1? This will download ~1GB. [Y/n]: " RUN_TEST1
+read -r -p "Run Test 1? This will download ~1.2GB. [Y/n]: " RUN_TEST1
 RUN_TEST1=${RUN_TEST1:-Y}
 
 if [[ "$RUN_TEST1" =~ ^[Yy]$ ]]; then

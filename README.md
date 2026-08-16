@@ -159,7 +159,7 @@ docker run --rm --gpus all nvidia/cuda:13.0.1-base-ubuntu24.04 nvidia-smi
 
 **AMD:**
 ```bash
-docker run --rm --name rcom-smi --device /dev/kfd --device /dev/dri -e HSA_OVERRIDE_GFX_VERSION=11.5.1 -e HSA_ENABLE_SDMA=0 --group-add video --group-add "$(getent group render | cut -d: -f3)" --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --ipc=host rocm/rocm-terminal bash -c "rocm-smi --showmemuse --showuse --showmeminfo all --showhw --showproductname && rocminfo | grep -i -A5 'Agent [0-9]'"
+docker run --rm --device /dev/kfd --device /dev/dri --group-add video --group-add "$(getent group render | cut -d: -f3)" --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --ipc=host rocm/dev-ubuntu-24.04:7.2.4 bash -c "rocm-smi --showhw && rocminfo | grep -i -A5 'Agent [0-9]' && amd-smi list && amd-smi metric --mem-usage"
 ```
 
 ---
