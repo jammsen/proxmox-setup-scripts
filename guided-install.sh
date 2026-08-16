@@ -80,8 +80,8 @@ repo_update() {
     git -C "$SCRIPT_DIR" log --oneline "${before}..${after}" | sed 's/^/  /'
     echo ""
     echo "Containers that mount this directory (/root/proxmox-setup-scripts) see the new scripts as well."
-    echo -e "${GREEN}>>> Restarting the installer with the new version...${NC}"
-    sleep 1
+    echo ""
+    read -r -p "Press Enter to restart the installer with the new version..."
     exec bash "$0" "$@"
 }
 
