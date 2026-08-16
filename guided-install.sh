@@ -121,9 +121,9 @@ auto_check_loop() {
         echo "$count" > "$AUTO_CHECK_STATE"
         # repaint only on change and only while the menu prompt is visible
         if [ "$count" -gt 0 ] && [ "$count" != "$last" ] && [ -f "$AUTO_CHECK_MENU_FLAG" ]; then
-            # save cursor, go up 4 lines (a-line) and 3 lines (u-line) above the prompt, rewrite both, restore cursor
-            printf '\0337\033[4A\r\033[2K%b↻%b a/auto-check - Background check for updates every %ss (fetch only, never pulls) [on]\033[1B\r\033[2K%b! u/update     - Update the scripts (git pull) and restart the installer - Update available (%s new commit(s))%b\0338' \
-                "$YELLOW" "$NC" "$AUTO_CHECK_INTERVAL" "$YELLOW" "$count" "$NC" > /dev/tty 2>/dev/null
+            # save cursor, go up 3 lines (u-line is 3 above the prompt), rewrite, restore cursor
+            printf '\0337\033[3A\r\033[2K%b! u/update     - Update the scripts (git pull) and restart the installer - Update available (%s new commit(s))%b\0338' \
+                "$YELLOW" "$count" "$NC" > /dev/tty 2>/dev/null
         fi
         last=$count
     done
@@ -406,12 +406,7 @@ show_main_menu() {
     echo "  <number>     - Run specific script by number (e.g., 001, 031, 999)"
     echo "  r/reset      - Clear progress tracking"
     if [ "$AUTO_CHECK" == "1" ]; then
-        # green while idle, yellow once an update is known
-        if [ "$UPDATE_AVAILABLE" == "1" ]; then
-            echo -e "${YELLOW}↻${NC} a/auto-check - Background check for updates every ${AUTO_CHECK_INTERVAL}s (fetch only, never pulls) [on]"
-        else
-            echo -e "${GREEN}↻${NC} a/auto-check - Background check for updates every ${AUTO_CHECK_INTERVAL}s (fetch only, never pulls) [on]"
-        fi
+        echo -e "${GREEN}↻${NC} a/auto-check - Background check for updates every ${AUTO_CHECK_INTERVAL}s (fetch only, never pulls) [on]"
     else
         echo "  a/auto-check - Background check for updates every ${AUTO_CHECK_INTERVAL}s (fetch only, never pulls) [off]"
     fi
