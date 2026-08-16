@@ -228,8 +228,13 @@ if ! echo "$STORAGE_LIST" | grep -qx "$CT_STORAGE"; then
 fi
 
 echo ""
-echo "Disk size for the container. The base system with Docker and the NVIDIA libraries needs"
-echo "about 2 GB, the full AMD ROCm stack about 20 GB - the rest is for your models and data."
+if [ "$GPU_TYPE" == "1" ]; then
+    echo "Disk size for the container. The base system with Docker and the AMD ROCm stack needs"
+    echo "about 20 GB - the rest is for your models and data."
+else
+    echo "Disk size for the container. The base system with Docker and the NVIDIA libraries needs"
+    echo "about 2 GB - the rest is for your models and data."
+fi
 read -r -p "Enter container disk size in GB [75]: " CT_DISK_GB
 CT_DISK_GB=${CT_DISK_GB:-75}
 if ! [[ "$CT_DISK_GB" =~ ^[0-9]+$ ]] || [ "$CT_DISK_GB" -lt 8 ]; then
