@@ -138,8 +138,12 @@ auto_check_start() {
 
 auto_check_stop() {
     if [ -n "$AUTO_CHECK_PID" ]; then
+        # kill the poller's children first (its sleep / git fetch), then the poller itself, then reap it
+        pkill -TERM -P "$AUTO_CHECK_PID" 2>/dev/null
         kill "$AUTO_CHECK_PID" 2>/dev/null
         wait "$AUTO_CHECK_PID" 2>/dev/null
+        # belt and braces: anything still hanging off it
+        pkill -KILL -P "$AUTO_CHECK_PID" 2>/dev/null
         AUTO_CHECK_PID=""
     fi
     rm -f "$AUTO_CHECK_MENU_FLAG"
