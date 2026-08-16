@@ -330,7 +330,7 @@ The scripts directory is mounted read-only inside the containers, so copy an exa
 before editing it:
 
 ```bash
-cp -r /root/proxmox-setup-scripts/docker-compose-testing-examples/amd/vllm /opt/vllm && cd /opt/vllm
+cp -rT /root/proxmox-setup-scripts/docker-compose-testing-examples/amd/vllm /opt/vllm && cd /opt/vllm
 nano compose.yml              # pick model option 1/2, adjust memory settings if needed
 RENDER_GID=$(getent group render | cut -d: -f3) bash -c "docker compose up -d && docker compose logs -f"
                               # first start downloads the image and the model (into /opt/llm-models/huggingface)

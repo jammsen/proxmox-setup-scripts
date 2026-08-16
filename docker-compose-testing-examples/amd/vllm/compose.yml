@@ -9,7 +9,7 @@
 # secrets the way you normally do with compose.
 #
 # The scripts directory is mounted read-only into the container, so copy this folder somewhere
-# writable before editing, e.g.:  cp -r /root/proxmox-setup-scripts/docker-compose-testing-examples/amd/vllm /opt/vllm && cd /opt/vllm
+# writable before editing, e.g.:  cp -rT /root/proxmox-setup-scripts/docker-compose-testing-examples/amd/vllm /opt/vllm && cd /opt/vllm
 #
 # Start it with the gid of the "render" group of this container (owns /dev/kfd and /dev/dri/renderD*;
 # the number differs between containers, that is why it is passed in):
