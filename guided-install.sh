@@ -18,6 +18,75 @@ PROGRESS_FILE="${SCRIPT_DIR}/.install-progress"
 # Create progress file if it doesn't exist
 touch "$PROGRESS_FILE"
 
+# --- Repository update support -------------------------------------------------------------
+# The installer can pull the latest scripts from git on request (menu option "u"). It never
+# updates on its own: at start it only *checks* once (a quick, read-only fetch) whether the
+# upstream branch has new commits, so the menu can show a hint. Offline or non-git checkouts
+# simply get no hint.
+REPO_IS_GIT=0
+REPO_VERSION=""
+UPDATE_AVAILABLE=0
+UPDATE_COUNT=0
+
+repo_check_update() {
+    UPDATE_AVAILABLE=0
+    UPDATE_COUNT=0
+    if ! git -C "$SCRIPT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        REPO_IS_GIT=0
+        return
+    fi
+    REPO_IS_GIT=1
+    REPO_VERSION=$(git -C "$SCRIPT_DIR" log -1 --format='%h (%cs)' 2>/dev/null)
+    # Only a fetch (read-only, nothing is changed locally); give up quietly after a few seconds
+    if ! timeout 8 git -C "$SCRIPT_DIR" fetch --quiet 2>/dev/null; then
+        return
+    fi
+    local behind
+    behind=$(git -C "$SCRIPT_DIR" rev-list --count 'HEAD..@{u}' 2>/dev/null || echo 0)
+    if [ "${behind:-0}" -gt 0 ]; then
+        UPDATE_AVAILABLE=1
+        UPDATE_COUNT=$behind
+    fi
+}
+
+repo_update() {
+    echo ""
+    if [ "$REPO_IS_GIT" != "1" ]; then
+        echo -e "${YELLOW}This copy of the scripts is not a git checkout, so it cannot update itself.${NC}"
+        echo "Download the latest version again or clone the repository with git."
+        return 1
+    fi
+    local before
+    before=$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null)
+    echo -e "${GREEN}>>> Pulling the latest scripts (git pull --ff-only)...${NC}"
+    if ! git -C "$SCRIPT_DIR" pull --ff-only; then
+        echo ""
+        echo -e "${YELLOW}The update could not be applied automatically.${NC}"
+        echo "Usually this means there are local changes in ${SCRIPT_DIR} or the history diverged."
+        echo "Have a look with:  git -C \"${SCRIPT_DIR}\" status"
+        echo "If git complains about 'dubious ownership', allow the directory with:"
+        echo "  git config --global --add safe.directory \"${SCRIPT_DIR}\""
+        return 1
+    fi
+    local after
+    after=$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null)
+    if [ "$before" == "$after" ]; then
+        echo -e "${GREEN}Already up to date.${NC}"
+        UPDATE_AVAILABLE=0
+        return 0
+    fi
+    echo ""
+    echo -e "${GREEN}Updated. Changes:${NC}"
+    git -C "$SCRIPT_DIR" log --oneline "${before}..${after}" | sed 's/^/  /'
+    echo ""
+    echo "Containers that mount this directory (/root/proxmox-setup-scripts) see the new scripts as well."
+    echo -e "${GREEN}>>> Restarting the installer with the new version...${NC}"
+    sleep 1
+    exec bash "$0" "$@"
+}
+
+repo_check_update
+
 # Associative arrays to store script metadata
 declare -A SCRIPT_DESCRIPTIONS
 declare -A SCRIPT_DETECT_CMDS
@@ -213,6 +282,13 @@ show_main_menu() {
     echo -e "${GREEN}========================================${NC}"
     echo ""
     echo -e "${YELLOW}Progress: $(wc -l < "$PROGRESS_FILE") steps completed${NC}"
+    if [ -n "$REPO_VERSION" ]; then
+        if [ "$UPDATE_AVAILABLE" == "1" ]; then
+            echo -e "${YELLOW}Version: ${REPO_VERSION} - update available (${UPDATE_COUNT} new commit(s), option 'u')${NC}"
+        else
+            echo -e "${YELLOW}Version: ${REPO_VERSION}${NC}"
+        fi
+    fi
     echo ""
     
     echo -e "${GREEN}=== Host Setup Scripts (000-029) ===${NC}"
@@ -246,6 +322,11 @@ show_main_menu() {
     echo "  all          - Run all Host Setup scripts (000-029) with confirmations [DEFAULT]"
     echo "  <number>     - Run specific script by number (e.g., 001, 031, 999)"
     echo "  r/reset      - Clear progress tracking"
+    if [ "$UPDATE_AVAILABLE" == "1" ]; then
+        echo -e "${YELLOW}! u/update     - Update the scripts (git pull) and restart the installer - Update available${NC}"
+    else
+        echo "  u/update     - Update the scripts (git pull) and restart the installer"
+    fi
     echo "  q/quit       - Exit installer"
     echo ""
 }
@@ -382,6 +463,11 @@ while true; do
                 true > "$PROGRESS_FILE"
                 echo -e "${GREEN}Progress cleared!${NC}"
             fi
+            read -r -p "Press Enter to continue..."
+            ;;
+            
+        "u"|"update")
+            repo_update "$@"
             read -r -p "Press Enter to continue..."
             ;;
             
