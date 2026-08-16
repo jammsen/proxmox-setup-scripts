@@ -406,7 +406,7 @@ show_main_menu() {
     echo "  <number>     - Run specific script by number (e.g., 001, 031, 999)"
     echo "  r/reset      - Clear progress tracking"
     if [ "$AUTO_CHECK" == "1" ]; then
-        echo "  a/auto-check - Background check for updates every ${AUTO_CHECK_INTERVAL}s (fetch only, never pulls) [on]"
+        echo -e "${GREEN}↻${NC} a/auto-check - Background check for updates every ${AUTO_CHECK_INTERVAL}s (fetch only, never pulls) [on]"
     else
         echo "  a/auto-check - Background check for updates every ${AUTO_CHECK_INTERVAL}s (fetch only, never pulls) [off]"
     fi
