@@ -192,7 +192,7 @@ else
 fi
 
 echo ""
-HOSTNAME_TEMPLATE="ollama-docker-${GPU_NAME,,}-$CONTAINER_ID"
+HOSTNAME_TEMPLATE="docker-gpu-${GPU_NAME,,}-$CONTAINER_ID"
 read -r -p "Enter hostname [$HOSTNAME_TEMPLATE]: " HOSTNAME
 HOSTNAME=${HOSTNAME:-$HOSTNAME_TEMPLATE}
 
@@ -255,7 +255,7 @@ pct create "$CONTAINER_ID" "local:vztmpl/${LXC_TEMPLATE}" \
     --password testing \
     --rootfs local-zfs:160 \
     --swap 4096 \
-    --tags "docker;ollama;${ADDITIONAL_TAGS}" \
+    --tags "docker;gpu;${ADDITIONAL_TAGS}" \
     --unprivileged 0
 
 echo -e "${GREEN}>>> Added LXC container with ID $CONTAINER_ID${NC}"

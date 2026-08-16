@@ -23,8 +23,8 @@ pveam update
 echo ">>> Downloading Ubuntu 24.04 LXC template to local storage"
 pveam download local ubuntu-24.04-standard_24.04-2_amd64.tar.zst
 echo ">>> Creating AMD LXC container template with GPU passthrough support"
-#pct create "$CONTAINER_ID" local:160G --arch amd64 --cores 8 --features nesting=1 --hostname ollama-docker-amd --memory 8192 --net0 name=eth0,bridge=vmbr0,firewall=1,gw=10.0.0.1,hwaddr=BC:24:11:F5:74:6A,ip=10.0.0.206/24,type=veth --ostype ubuntu --password testing --rootfs local-zfs:subvol-${CONTAINER_ID}-disk-0,size=160G --swap 4096 --tags docker;ollama;amd --unprivileged 0
-pct create "$CONTAINER_ID" local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst --arch amd64 --cores 8 --features nesting=1 --hostname ollama-docker-amd --memory 8192 --net0 name=eth0,bridge=vmbr0,firewall=1,gw=10.0.0.1,hwaddr=BC:24:11:F5:74:6A,ip=10.0.0.206/24,type=veth --ostype ubuntu --password testing --rootfs local-zfs:160,size=160G --swap 4096 --tags "docker;ollama;amd" --unprivileged 0
+#pct create "$CONTAINER_ID" local:160G --arch amd64 --cores 8 --features nesting=1 --hostname docker-gpu-amd-${CONTAINER_ID} --memory 8192 --net0 name=eth0,bridge=vmbr0,firewall=1,gw=10.0.0.1,hwaddr=BC:24:11:F5:74:6A,ip=10.0.0.206/24,type=veth --ostype ubuntu --password testing --rootfs local-zfs:subvol-${CONTAINER_ID}-disk-0,size=160G --swap 4096 --tags docker;gpu;amd --unprivileged 0
+pct create "$CONTAINER_ID" local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst --arch amd64 --cores 8 --features nesting=1 --hostname docker-gpu-amd-${CONTAINER_ID} --memory 8192 --net0 name=eth0,bridge=vmbr0,firewall=1,gw=10.0.0.1,hwaddr=BC:24:11:F5:74:6A,ip=10.0.0.206/24,type=veth --ostype ubuntu --password testing --rootfs local-zfs:160,size=160G --swap 4096 --tags "docker;gpu;amd" --unprivileged 0
 echo ">>> Added LXC container with ID $CONTAINER_ID and default password 'testing'"
 echo ">>> Configuring GPU passthrough for AMD devices"
 cat >> "/etc/pve/lxc/${CONTAINER_ID}.conf" << EOF
