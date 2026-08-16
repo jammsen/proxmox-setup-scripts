@@ -5,6 +5,11 @@
 
 set -e
 
+# The Proxmox template sets LANG=en_US.UTF-8 but does not generate that locale, which makes
+# perl/apt print locale warnings on every step. Use C.UTF-8 for this run and generate en_US.UTF-8
+# further below so later logins are clean too.
+export LC_ALL=C.UTF-8
+
 # Get script directory and source colors
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
@@ -54,6 +59,11 @@ apt remove -y docker-compose docker docker.io containerd runc 2>/dev/null || tru
 echo -e "${GREEN}>>> Updating system packages...${NC}"
 # Non-interactive: keep locally modified configs (e.g. sshd_config with root login enabled)
 apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y -o Dpkg::Options::=--force-confold
+# Generate the locale the template refers to (LANG=en_US.UTF-8) so the warnings go away permanently
+if command -v locale-gen >/dev/null 2>&1 && ! locale -a 2>/dev/null | grep -qi "en_US.utf8"; then
+    sed -i 's/^# *en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen 2>/dev/null || true
+    locale-gen en_US.UTF-8 >/dev/null 2>&1 || true
+fi
 
 # Install Docker prerequisites
 echo -e "${GREEN}>>> Installing prerequisites...${NC}"

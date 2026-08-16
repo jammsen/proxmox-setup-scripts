@@ -336,15 +336,6 @@ echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}>>> LXC Container Setup Complete! <<<${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
-echo "Container ID: $CONTAINER_ID"
-echo "GPU Type: $([ "$GPU_TYPE" == "1" ] && echo "AMD" || echo "NVIDIA")"
-echo "GPU PCI Address: $PCI_ADDRESS"
-echo "SSH Access: ssh root@$IP_ADDRESS"
-echo "Default Password: testing"
-echo "Scripts mounted at: /root/proxmox-setup-scripts"
-echo ""
-echo -e "${YELLOW}IMPORTANT: Change the default password after first login!${NC}"
-echo ""
 read -r -p "Verify GPU devices inside the container now? [Y/n]: " RUN_VERIFY
 RUN_VERIFY=${RUN_VERIFY:-Y}
 if [[ "$RUN_VERIFY" =~ ^[Yy]$ ]]; then
@@ -364,11 +355,6 @@ if [ "$GPU_TYPE" == "1" ]; then
         echo ""
         echo -e "${GREEN}>>> Running AMD GPU installation script...${NC}"
         pct exec "$CONTAINER_ID" -- bash /root/proxmox-setup-scripts/lxc/install-docker-and-amd-drivers-in-lxc.sh
-        echo ""
-        echo "  # You can SSH into container:"
-        echo "  ssh root@$IP_ADDRESS"
-        echo "  cd /root/proxmox-setup-scripts/lxc"
-        echo "  ./install-docker-and-amd-drivers-in-lxc.sh"
 
     else
         echo ""
@@ -390,11 +376,6 @@ else
         echo ""
         echo -e "${GREEN}>>> Running NVIDIA GPU installation script...${NC}"
         pct exec "$CONTAINER_ID" -- bash /root/proxmox-setup-scripts/lxc/install-docker-and-nvidia-drivers-in-lxc.sh
-        echo ""
-        echo "  # You can SSH into container:"
-        echo "  ssh root@$IP_ADDRESS"
-        echo "  cd /root/proxmox-setup-scripts/lxc"
-        echo "  ./install-docker-and-nvidia-drivers-in-lxc.sh"
     else
         echo ""
         echo -e "${YELLOW}Installation skipped. You can run it manually later:${NC}"
