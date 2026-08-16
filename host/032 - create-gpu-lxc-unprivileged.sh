@@ -24,6 +24,58 @@ echo "than privileged ones (script 031). GPU devices are passed through with"
 echo "Proxmox's built-in device passthrough (dev0, dev1, ...)."
 echo ""
 
+# --- Preparation: shared model directory on the host -------------------------------------
+# Optional folder on this Proxmox host that gets mounted into the container (mp1). Several
+# containers can share it (models are stored once) and the container disk stays small.
+echo -e "${GREEN}>>> Preparation: shared model directory${NC}"
+echo "A folder on this Proxmox host can be mounted into the container for LLM models."
+echo "Several containers can share it (models are stored once) and the container disk stays small."
+read -r -p "Use a shared model directory? [Y/n]: " USE_MODELS_DIR
+USE_MODELS_DIR=${USE_MODELS_DIR:-Y}
+MODELS_DIR=""
+MODELS_DIR_USED_GB=""
+if [[ "$USE_MODELS_DIR" =~ ^[Yy]$ ]]; then
+    read -r -p "Host directory for models [/opt/llm-models]: " MODELS_DIR
+    MODELS_DIR=${MODELS_DIR:-/opt/llm-models}
+    if [[ "$MODELS_DIR" != /* ]]; then
+        echo -e "${RED}Error: please enter an absolute path (starting with /)${NC}"
+        exit 1
+    fi
+    # Wanted: owner 100000 (= root inside unprivileged containers, Proxmox default id mapping) and
+    # mode 1777 (like /tmp): every container and user can write, only the owner of a file may delete it.
+    if [ ! -d "$MODELS_DIR" ]; then
+        read -r -p "$MODELS_DIR does not exist yet. Create it now (owner 100000, permissions 1777)? [Y/n]: " CREATE_MODELS_DIR
+        if [[ "${CREATE_MODELS_DIR:-Y}" =~ ^[Yy]$ ]]; then
+            mkdir -p "$MODELS_DIR"
+            chown 100000:100000 "$MODELS_DIR"
+            chmod 1777 "$MODELS_DIR"
+            echo -e "${GREEN}✓ Created $MODELS_DIR${NC}"
+        else
+            echo "Continuing without a shared model directory."
+            MODELS_DIR=""
+        fi
+    else
+        CUR_MODE=$(stat -c '%a' "$MODELS_DIR")
+        CUR_OWNER=$(stat -c '%u:%g' "$MODELS_DIR")
+        MODELS_DIR_USED_GB=$(du -sBG "$MODELS_DIR" 2>/dev/null | awk '{print $1}' | tr -d 'G')
+        echo "$MODELS_DIR exists (owner ${CUR_OWNER}, permissions ${CUR_MODE}, ${MODELS_DIR_USED_GB:-?} GB in use)."
+        if [ "$CUR_MODE" != "1777" ]; then
+            echo "For sharing between containers it should be world-writable with the sticky bit (1777)."
+            read -r -p "Set permissions to 1777 (and owner to 100000) now? [Y/n]: " FIX_MODELS_DIR
+            if [[ "${FIX_MODELS_DIR:-Y}" =~ ^[Yy]$ ]]; then
+                chown 100000:100000 "$MODELS_DIR"
+                chmod 1777 "$MODELS_DIR"
+                echo -e "${GREEN}✓ Permissions updated${NC}"
+            else
+                echo -e "${YELLOW}Left as is - containers may not be able to write into it.${NC}"
+            fi
+        else
+            echo -e "${GREEN}✓ Permissions are fine${NC}"
+        fi
+    fi
+fi
+echo ""
+
 # Prompt for container ID
 read -r -p "Enter container ID [100]: " CONTAINER_ID
 CONTAINER_ID=${CONTAINER_ID:-100}
@@ -287,6 +339,11 @@ echo "Hostname: $HOSTNAME"
 echo "MAC Address: $MAC_ADDRESS"
 echo "Resources: ${CT_CORES} cores, $((CT_MEMORY_MB/1024)) GB RAM, $((CT_SWAP_MB/1024)) GB swap"
 echo "Disk: ${CT_DISK_GB} GB on ${CT_STORAGE}${STORAGE_FREE_GB:+ (${STORAGE_FREE_GB} GB free)}"
+if [ -n "$MODELS_DIR" ]; then
+    echo "Model directory: ${MODELS_DIR} (host) -> ${MODELS_DIR} (container)${MODELS_DIR_USED_GB:+, ${MODELS_DIR_USED_GB} GB in use}"
+else
+    echo "Model directory: none (models are stored inside the container)"
+fi
 echo ""
 read -r -p "Proceed with container creation? [Y/n]: " CONFIRM
 CONFIRM=${CONFIRM:-Y}
@@ -389,6 +446,10 @@ echo -e "${GREEN}>>> Mounting scripts directory into container${NC}"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 # Add bind mount for scripts directory
 pct set "$CONTAINER_ID" -mp0 "$REPO_DIR,mp=/root/proxmox-setup-scripts"
+if [ -n "$MODELS_DIR" ]; then
+    echo -e "${GREEN}>>> Mounting shared model directory ${MODELS_DIR} into container${NC}"
+    pct set "$CONTAINER_ID" -mp1 "${MODELS_DIR},mp=${MODELS_DIR}"
+fi
 
 echo -e "${GREEN}>>> Enabling SSH root login${NC}"
 pct exec "$CONTAINER_ID" -- bash -c "sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config"
@@ -465,6 +526,9 @@ echo "GPU Type: $([ "$GPU_TYPE" == "1" ] && echo "AMD" || echo "NVIDIA")"
 echo "GPU PCI Address: $PCI_ADDRESS"
 echo "Resources: ${CT_CORES} cores, $((CT_MEMORY_MB/1024)) GB RAM, $((CT_SWAP_MB/1024)) GB swap"
 echo "Disk: ${CT_DISK_GB} GB on ${CT_STORAGE}"
+if [ -n "$MODELS_DIR" ]; then
+    echo "Model directory: ${MODELS_DIR} (shared from the host, use it e.g. as OLLAMA_MODELS)"
+fi
 echo "SSH Access: ssh root@$IP_ADDRESS"
 echo "Default Password: testing"
 echo "Scripts mounted at: /root/proxmox-setup-scripts"

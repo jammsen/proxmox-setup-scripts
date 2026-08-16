@@ -115,11 +115,13 @@ only prints a notice and offers to remove the old rules file if it is still pres
 This interactive script will:
 1. Prompt you to select GPU type (AMD or NVIDIA)
 2. Auto-detect available GPUs with their PCI addresses
-3. Create an Ubuntu LXC container with GPU passthrough (26.04 for NVIDIA, 24.04 for AMD - ROCm has no 26.04 repos yet)
-4. Configure persistent PCI-based device mapping
-5. Mount the scripts directory at `/root/proxmox-setup-scripts` inside the container
-6. Enable SSH access (default password: `testing`)
-7. **Ask if you want to automatically install Docker and GPU drivers**
+3. Ask for hostname/IP, container resources (cores, RAM, swap), storage and disk size (shows free space)
+4. Optionally mount a shared model directory from the host (default `/opt/llm-models`, created with `1777`
+   so several containers can use the same models and the container disk stays small)
+5. Create an Ubuntu LXC container with GPU passthrough (26.04 for NVIDIA, 24.04 for AMD - ROCm has no 26.04 repos yet)
+6. Mount the scripts directory at `/root/proxmox-setup-scripts` inside the container
+7. Enable SSH access (default password: `testing`)
+8. **Ask if you want to automatically install Docker and GPU drivers**
 
 **Default answer is "Y"** - just press Enter to run the installation automatically!
 
