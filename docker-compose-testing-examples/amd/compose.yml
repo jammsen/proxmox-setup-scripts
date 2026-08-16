@@ -1,5 +1,6 @@
-# Before use please create persistent volume for Ollama models or bind mount a host directory
-# Run this before running docker compose up: docker volume create ollama-models
+# Models are stored in /opt/llm-models - the shared model directory that scripts 031/032 mount from the
+# Proxmox host into this container (so several containers share the same models). If you did not
+# choose that option, the directory is simply created inside the container on first start.
 # Monitoring snippet:
 # watch -d "docker exec ollama-main-gpu ollama list && echo \"\\nollama-main-gpu\\n\" && docker exec ollama-main-gpu ollama ps && echo \"\\nollama-rocm6-gpu\\n\" && docker exec ollama-rocm6-gpu ollama ps && echo \"\\nollama-rocm7-gpu\\n\" && docker exec ollama-rocm7-gpu ollama ps && echo \"\\nollama-vulkan-gpu\\n\" && docker exec ollama-vulkan-gpu ollama ps"
 services:
@@ -13,6 +14,7 @@ services:
             - /dev/kfd
             - /dev/dri
         environment:
+            - OLLAMA_MODELS=/opt/llm-models
             - HSA_OVERRIDE_GFX_VERSION=11.5.1
             - HSA_ENABLE_SDMA=0
         group_add:
@@ -23,7 +25,7 @@ services:
             - seccomp=unconfined
         ipc: host
         volumes:
-            - ollama-models:/root/.ollama
+            - /opt/llm-models:/opt/llm-models
     ollama-rocm6-gpu:
         image: ghcr.io/phueper/ollama-linux-amd-apu:optm-rocm_6_7
         container_name: ollama-rocm6-gpu
@@ -33,6 +35,7 @@ services:
             - /dev/kfd
             - /dev/dri
         environment:
+            - OLLAMA_MODELS=/opt/llm-models
             - OLLAMA_LLM_LIBRARY=rocm_v6
             - OLLAMA_FLASH_ATTENTION=true
             - OLLAMA_DEBUG=1
@@ -46,7 +49,7 @@ services:
             - seccomp=unconfined
         ipc: host
         volumes:
-            - ollama-models:/root/.ollama
+            - /opt/llm-models:/opt/llm-models
     ollama-rocm7-gpu:
         image: ghcr.io/phueper/ollama-linux-amd-apu:optm-rocm_6_7
         container_name: ollama-rocm7-gpu
@@ -56,6 +59,7 @@ services:
             - /dev/kfd
             - /dev/dri
         environment:
+            - OLLAMA_MODELS=/opt/llm-models
             - OLLAMA_LLM_LIBRARY=rocm_v7
             - OLLAMA_FLASH_ATTENTION=true
             - OLLAMA_DEBUG=1
@@ -69,7 +73,7 @@ services:
             - seccomp=unconfined
         ipc: host
         volumes:
-            - ollama-models:/root/.ollama
+            - /opt/llm-models:/opt/llm-models
     ollama-vulkan-gpu:
         image: ghcr.io/phueper/ollama-linux-amd-apu:optm-rocm_6_7
         container_name: ollama-vulkan-gpu
@@ -79,6 +83,7 @@ services:
             - /dev/kfd
             - /dev/dri
         environment:
+            - OLLAMA_MODELS=/opt/llm-models
             - OLLAMA_LLM_LIBRARY=vulkan
             - OLLAMA_FLASH_ATTENTION=true
             - OLLAMA_DEBUG=1
@@ -92,9 +97,4 @@ services:
             - seccomp=unconfined
         ipc: host
         volumes:
-            - ollama-models:/root/.ollama
-
-volumes:
-    ollama-models:
-        external: true
-        name: ollama-models
+            - /opt/llm-models:/opt/llm-models

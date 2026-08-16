@@ -1,5 +1,6 @@
-# Before use please create persistent volume for Ollama models or bind mount a host directory
-# Run this before running docker compose up: docker volume create ollama-models
+# Models are stored in /opt/llm-models - the shared model directory that scripts 031/032 mount from the
+# Proxmox host into this container (so several containers share the same models). If you did not
+# choose that option, the directory is simply created inside the container on first start.
 # Monitoring snippet:
 # watch -d "docker exec ollama-main-gpu ollama list && echo \"\\nollama-main-gpu\\n\" && docker exec ollama-main-gpu ollama ps"
 services:
@@ -10,6 +11,7 @@ services:
         ports:
             - 11434:11434
         environment:
+            - OLLAMA_MODELS=/opt/llm-models
             - OLLAMA_NUM_PARALLEL=4
             #- OLLAMA_SCHED_SPREAD=1
             #- OLLAMA_MAX_LOADED_MODELS=3
@@ -21,9 +23,4 @@ services:
                           count: all
                           capabilities: [gpu]
         volumes:
-            - ollama-models:/root/.ollama
-
-volumes:
-    ollama-models:
-        external: true
-        name: ollama-models
+            - /opt/llm-models:/opt/llm-models
