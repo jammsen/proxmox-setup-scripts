@@ -82,10 +82,92 @@ repo_update() {
     echo "Containers that mount this directory (/root/proxmox-setup-scripts) see the new scripts as well."
     echo ""
     read -r -p "Press Enter to restart the installer with the new version..."
+    cleanup_on_exit   # exec replaces this process without running the EXIT trap, so clean up by hand
     exec bash "$0" "$@"
 }
 
 repo_check_update
+
+# --- Optional background update check ------------------------------------------------------
+# Off by default. When enabled (menu option "a"), a helper process runs the same read-only
+# check every AUTO_CHECK_INTERVAL seconds and, if new commits show up while the menu is on
+# screen, repaints the "u/update" line in place without touching what the user is typing.
+# It never pulls anything. State lives in small files next to the progress file.
+SETTINGS_FILE="${SCRIPT_DIR}/.install-settings"
+AUTO_CHECK_INTERVAL=60
+AUTO_CHECK_STATE="${SCRIPT_DIR}/.install-update-state"   # written by the poller: "<count>"
+AUTO_CHECK_MENU_FLAG="${SCRIPT_DIR}/.install-menu-shown" # exists only while the menu prompt is on screen
+AUTO_CHECK_PID=""
+AUTO_CHECK=0
+if [ -f "$SETTINGS_FILE" ]; then
+    # shellcheck disable=SC1090
+    source "$SETTINGS_FILE"
+fi
+
+# The poller: fetch, compare, and repaint the menu line if something changed
+auto_check_loop() {
+    local last=0 count sleep_pid=""
+    # when we are told to stop, take the sleeping child with us so nothing lingers
+    trap '[ -n "$sleep_pid" ] && kill "$sleep_pid" 2>/dev/null; exit 0' TERM INT HUP
+    while true; do
+        sleep "$AUTO_CHECK_INTERVAL" & sleep_pid=$!
+        wait "$sleep_pid" 2>/dev/null
+        sleep_pid=""
+        # parent gone (killed, crashed)? then stop too - no orphan
+        kill -0 "$1" 2>/dev/null || exit 0
+        timeout 20 git -C "$SCRIPT_DIR" fetch --quiet 2>/dev/null || continue
+        count=$(git -C "$SCRIPT_DIR" rev-list --count 'HEAD..@{u}' 2>/dev/null || echo 0)
+        count=${count:-0}
+        echo "$count" > "$AUTO_CHECK_STATE"
+        # repaint only on change and only while the menu prompt is visible
+        if [ "$count" -gt 0 ] && [ "$count" != "$last" ] && [ -f "$AUTO_CHECK_MENU_FLAG" ]; then
+            # save cursor, go up 3 lines (u-line is 3 above the prompt), rewrite, restore cursor
+            printf '\0337\033[3A\r\033[2K%b! u/update     - Update the scripts (git pull) and restart the installer - Update available (%s new commit(s))%b\0338' \
+                "$YELLOW" "$count" "$NC" > /dev/tty 2>/dev/null
+        fi
+        last=$count
+    done
+}
+
+auto_check_start() {
+    [ -n "$AUTO_CHECK_PID" ] && kill -0 "$AUTO_CHECK_PID" 2>/dev/null && return
+    [ "$REPO_IS_GIT" == "1" ] || return
+    auto_check_loop $$ &
+    AUTO_CHECK_PID=$!
+}
+
+auto_check_stop() {
+    if [ -n "$AUTO_CHECK_PID" ]; then
+        kill "$AUTO_CHECK_PID" 2>/dev/null
+        wait "$AUTO_CHECK_PID" 2>/dev/null
+        AUTO_CHECK_PID=""
+    fi
+    rm -f "$AUTO_CHECK_MENU_FLAG"
+}
+
+# Pick up the poller's result when the menu is (re)drawn
+auto_check_apply_state() {
+    if [ -f "$AUTO_CHECK_STATE" ]; then
+        local c
+        c=$(cat "$AUTO_CHECK_STATE" 2>/dev/null)
+        if [ "${c:-0}" -gt 0 ] 2>/dev/null; then
+            UPDATE_AVAILABLE=1
+            UPDATE_COUNT=$c
+        fi
+    fi
+}
+
+# Always clean up the helper - on quit, Ctrl-C, Ctrl-D (EOF), errors and the exec restart
+cleanup_on_exit() {
+    auto_check_stop
+    rm -f "$AUTO_CHECK_STATE"
+}
+trap cleanup_on_exit EXIT
+trap 'echo ""; exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+[ "$AUTO_CHECK" == "1" ] && auto_check_start
 
 # Associative arrays to store script metadata
 declare -A SCRIPT_DESCRIPTIONS
@@ -282,6 +364,7 @@ show_main_menu() {
     echo -e "${GREEN}========================================${NC}"
     echo ""
     echo -e "${YELLOW}Progress: $(wc -l < "$PROGRESS_FILE") steps completed${NC}"
+    auto_check_apply_state
     if [ -n "$REPO_VERSION" ]; then
         if [ "$UPDATE_AVAILABLE" == "1" ]; then
             echo -e "${YELLOW}Version: ${REPO_VERSION} - update available (${UPDATE_COUNT} new commit(s), option 'u')${NC}"
@@ -322,8 +405,13 @@ show_main_menu() {
     echo "  all          - Run all Host Setup scripts (000-029) with confirmations [DEFAULT]"
     echo "  <number>     - Run specific script by number (e.g., 001, 031, 999)"
     echo "  r/reset      - Clear progress tracking"
+    if [ "$AUTO_CHECK" == "1" ]; then
+        echo "  a/auto-check - Background check for updates every ${AUTO_CHECK_INTERVAL}s (fetch only, never pulls) [on]"
+    else
+        echo "  a/auto-check - Background check for updates every ${AUTO_CHECK_INTERVAL}s (fetch only, never pulls) [off]"
+    fi
     if [ "$UPDATE_AVAILABLE" == "1" ]; then
-        echo -e "${YELLOW}! u/update     - Update the scripts (git pull) and restart the installer - Update available${NC}"
+        echo -e "${YELLOW}! u/update     - Update the scripts (git pull) and restart the installer - Update available (${UPDATE_COUNT} new commit(s))${NC}"
     else
         echo "  u/update     - Update the scripts (git pull) and restart the installer"
     fi
@@ -386,7 +474,14 @@ confirm_run() {
 while true; do
     show_main_menu
     
-    read -r -p "Enter your choice [all]: " choice
+    touch "$AUTO_CHECK_MENU_FLAG"
+    # Ctrl-D (EOF) at the prompt = quit cleanly (the EXIT trap stops the helper)
+    if ! read -r -p "Enter your choice [all]: " choice; then
+        rm -f "$AUTO_CHECK_MENU_FLAG"
+        echo ""
+        exit 0
+    fi
+    rm -f "$AUTO_CHECK_MENU_FLAG"
     choice=${choice:-all}  # Default to "all"
     choice=${choice,,}  # Convert to lowercase
     
@@ -468,6 +563,25 @@ while true; do
             
         "u"|"update")
             repo_update "$@"
+            read -r -p "Press Enter to continue..."
+            ;;
+            
+        "a"|"auto-check")
+            if [ "$AUTO_CHECK" == "1" ]; then
+                AUTO_CHECK=0
+                auto_check_stop
+                echo -e "${GREEN}Background update check turned off.${NC}"
+            else
+                if [ "$REPO_IS_GIT" != "1" ]; then
+                    echo -e "${YELLOW}This copy is not a git checkout - there is nothing to check.${NC}"
+                else
+                    AUTO_CHECK=1
+                    auto_check_start
+                    echo -e "${GREEN}Background update check turned on (every ${AUTO_CHECK_INTERVAL}s, fetch only).${NC}"
+                    echo "If new commits appear while the menu is shown, the 'u/update' line is highlighted."
+                fi
+            fi
+            echo "AUTO_CHECK=$AUTO_CHECK" > "$SETTINGS_FILE"
             read -r -p "Press Enter to continue..."
             ;;
             

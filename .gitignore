@@ -7,3 +7,8 @@
 
 # Log files
 *.log
+
+# Guided installer runtime state (update check, settings)
+.install-settings
+.install-update-state
+.install-menu-shown
