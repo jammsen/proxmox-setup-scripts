@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-# Combined Docker + AMD ROCm Runtime installation for LXC containers
-# This script installs Docker, AMD ROCm libraries, and verifies GPU access inside the LXC container
+# Combined Docker + AMD ROCm runtime installation for LXC containers (Ubuntu 26.04+)
+# Installs Docker, the AMD ROCm runtime from repo.amd.com (ROCm 7.14+, per-GPU packages) and
+# verifies GPU access inside the LXC container. Only user-space - the kernel driver is the host's.
 
 set -e
 
@@ -111,76 +112,89 @@ echo -e "${GREEN}Installing AMD ROCm Libraries${NC}"
 echo -e "${GREEN}==========================================${NC}"
 echo ""
 
-# Add AMD ROCm repository
-echo -e "${GREEN}>>> Adding AMD ROCm repository...${NC}"
-# Add AMD ROCm GPG key
-# Make the directory if it doesn't exist yet.
-# This location is recommended by the distribution maintainers.
-sudo mkdir --parents --mode=0755 /etc/apt/keyrings
+# ------------------------------------------------------------------------------------------
+# ROCm 7.14+ built with TheRock, from repo.amd.com. Packages are per GPU family and small; only
+# the runtime is installed by default (Docker images like Ollama bring their own ROCm libraries,
+# the container just needs KFD access and the tools). The full library set for the detected GPU
+# is optional. Only user-space is installed - the kernel driver comes from the Proxmox host.
+# Needs Ubuntu 26.04 or newer in the container (that is what scripts 031/032 create).
+# ------------------------------------------------------------------------------------------
+UBUNTU_VERSION_ID=$(. /etc/os-release && echo "${VERSION_ID}")
+if [ "${UBUNTU_VERSION_ID%%.*}" -lt 26 ]; then
+    echo -e "${RED}This container runs Ubuntu ${UBUNTU_VERSION_ID}. The AMD ROCm packages used here need Ubuntu 26.04 or newer.${NC}"
+    echo "Please create the container with script 031 or 032 (they use the Ubuntu 26.04 template)."
+    exit 1
+fi
+mkdir --parents --mode=0755 /etc/apt/keyrings
 
-# Download the key, convert the signing-key to a full
-# keyring required by apt and store in the keyring directory
-wget https://repo.radeon.com/rocm/rocm.gpg.key -O - | \
-    gpg --dearmor | sudo tee /etc/apt/keyrings/rocm.gpg > /dev/null
+# Detect the GPU family (gfx target) from the kernel's KFD topology, e.g. 110500 -> gfx1150
+GFX_TARGET=""
+for props in /sys/class/kfd/kfd/topology/nodes/*/properties; do
+    [ -r "$props" ] || continue
+    ver=$(awk '$1=="gfx_target_version" {print $2}' "$props" 2>/dev/null)
+    if [ -n "$ver" ] && [ "$ver" != "0" ]; then
+        GFX_TARGET=$(printf 'gfx%d%x%x' $((ver/10000)) $(((ver/100)%100)) $((ver%100)))
+        break
+    fi
+done
+if [ -n "$GFX_TARGET" ]; then
+    echo -e "${GREEN}Detected AMD GPU family: ${YELLOW}${GFX_TARGET}${NC}"
+else
+    echo -e "${YELLOW}Could not detect the GPU family from /sys/class/kfd - continuing without it.${NC}"
+fi
 
-# Add ROCm 7.1.0 repository (Noble/24.04)
-sudo tee /etc/apt/sources.list.d/rocm.list << EOF
-deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/7.1 noble main
-deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/graphics/7.1/ubuntu noble main
-EOF
-
-sudo tee /etc/apt/preferences.d/rocm-pin-600 << EOF
-Package: *
-Pin: release o=repo.radeon.com
-Pin-Priority: 600
-EOF
-
+echo -e "${GREEN}>>> Adding AMD ROCm repository (repo.amd.com)...${NC}"
+wget -qO- https://repo.amd.com/rocm/packages-multi-arch/gpg/rocm.gpg | gpg --dearmor > /etc/apt/keyrings/amdrocm.gpg
+UBUNTU_REPO_TAG="ubuntu${UBUNTU_VERSION_ID//./}"
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/amdrocm.gpg] https://repo.amd.com/rocm/packages-multi-arch/${UBUNTU_REPO_TAG} stable main" \
+    > /etc/apt/sources.list.d/amdrocm.list
 apt update
 
-# Install AMD libraries (user-space only, NO kernel modules)
-# Note: We install the latest available version, but it must match the host driver
-echo -e "${GREEN}>>> Installing AMD ROCm libraries...${NC}"
+# Newest ROCm release in the repo (package names carry the version, e.g. amdrocm-runtime7.14)
+ROCM_VER=$(apt-cache search --names-only '^amdrocm-runtime[0-9]+\.[0-9]+$' | awk '{print $1}' | sed 's/^amdrocm-runtime//' | sort -V | tail -1)
+if [ -z "$ROCM_VER" ]; then
+    echo -e "${RED}No amdrocm-runtime package found in the repository for ${UBUNTU_REPO_TAG}.${NC}"
+    echo "Check https://repo.amd.com/rocm/packages-multi-arch/ for your Ubuntu release."
+    exit 1
+fi
+ROCM_HOME="/opt/rocm/core-${ROCM_VER}"
+echo -e "${GREEN}Using ROCm ${YELLOW}${ROCM_VER}${NC}"
 
-# Install ROCm 7.1.0 (runtime libraries without DKMS)
-# This installs runtime libraries without DKMS
-apt install -y rocm-libs rocm-smi rocminfo rocm-device-libs rocm-utils
+echo -e "${GREEN}>>> Installing ROCm runtime and tools...${NC}"
+echo "Packages: amdrocm-runtime${ROCM_VER} (HIP/HSA runtime), amdrocm-base${ROCM_VER} (rocminfo, rocm-smi), amdrocm-amdsmi${ROCM_VER} (amd-smi)"
+apt install -y "amdrocm-runtime${ROCM_VER}" "amdrocm-base${ROCM_VER}" "amdrocm-amdsmi${ROCM_VER}"
 
-# Install ROCm development packages (needed for Ollama Docker to compile if needed)
-apt install -y rocm-core rocm-dev hipcc
+# Optional: the full ROCm library set for this GPU (BLAS, DNN, FFT, ... - for building/running
+# HIP applications directly in the container instead of in Docker images)
+if [ -n "$GFX_TARGET" ] && apt-cache show "amdrocm${ROCM_VER}-${GFX_TARGET}" >/dev/null 2>&1; then
+    echo ""
+    echo "Docker images (Ollama, llama.cpp, ...) bring their own ROCm libraries, so the runtime above is"
+    echo "usually enough. If you want to run or build HIP/ROCm software directly in this container,"
+    echo "the full library set for ${GFX_TARGET} is available (about 650 MB download, 5 GB on disk)."
+    read -r -p "Install the full ROCm libraries for ${GFX_TARGET} as well? [y/N]: " FULL_ROCM
+    if [[ "${FULL_ROCM:-N}" =~ ^[Yy]$ ]]; then
+        apt install -y "amdrocm${ROCM_VER}-${GFX_TARGET}"
+    fi
+elif [ -n "$GFX_TARGET" ]; then
+    echo -e "${YELLOW}Note: ROCm ${ROCM_VER} has no library package for ${GFX_TARGET}; the runtime alone is installed.${NC}"
+fi
 
-# Install monitoring tools
+# Monitoring tools
 apt install -y nvtop radeontop
 
-# Add root user to render and video groups (critical for GPU access)
+# Root must be in the groups that own /dev/kfd and /dev/dri/renderD*
 usermod -a -G render,video root
-usermod -a -G video,render root
 
-# Set up ROCm environment variables
-cat >> /root/.bashrc << 'EOF'
-
-# ROCm Environment Variables
-export PATH="/opt/rocm/bin:${PATH}"
-export LD_LIBRARY_PATH="/opt/rocm/lib:${LD_LIBRARY_PATH}"
-export HSA_OVERRIDE_GFX_VERSION=11.5.1  # Required for gfx1150 support
-export HSA_ENABLE_SDMA=0  # May be needed for APU stability
-
+# Environment: the packages install into /opt/rocm/core-<version> and set no PATH themselves.
+# Libraries carry their own rpath, so no LD_LIBRARY_PATH is needed. The GPU family is a native
+# build target, so no HSA_OVERRIDE_GFX_VERSION is needed either.
+cat > /etc/profile.d/rocm.sh << EOF
+export ROCM_PATH="${ROCM_HOME}"
+export PATH="${ROCM_HOME}/bin:\${PATH}"
 EOF
-
-# Create system-wide ROCm profile
-cat > /etc/profile.d/rocm.sh << 'EOF'
-export PATH="/opt/rocm/bin:${PATH}"
-export LD_LIBRARY_PATH="/opt/rocm/lib:${LD_LIBRARY_PATH}"
-export HSA_OVERRIDE_GFX_VERSION=11.5.1  # Required for gfx1150 support
-export HSA_ENABLE_SDMA=0  # May be needed for APU stability
-
-EOF
-
 chmod +x /etc/profile.d/rocm.sh
-
-# Source the new environment
-source /root/.bashrc
-source /etc/profile.d/rocm.sh
-
+export ROCM_PATH="${ROCM_HOME}"
+export PATH="${ROCM_HOME}/bin:${PATH}"
 
 # Verify ROCm installation
 echo ""
@@ -191,6 +205,10 @@ echo ""
 which rocm-smi rocminfo nvtop radeontop
 rocminfo | grep -i -A5 'Agent [0-9]'
 rocm-smi --showmemuse --showuse --showmeminfo all --showhw --showproductname
+if command -v amd-smi >/dev/null 2>&1; then
+    echo ""
+    amd-smi version 2>/dev/null || true
+fi
 
 # Verify installation
 echo ""

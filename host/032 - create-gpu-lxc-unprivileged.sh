@@ -307,8 +307,8 @@ fi
 
 echo ""
 if [ "$GPU_TYPE" == "1" ]; then
-    echo "Disk size for the container. The base system with Docker and the AMD ROCm stack needs"
-    echo "about 20 GB - the rest is for your models and data."
+    echo "Disk size for the container. The base system with Docker and the AMD ROCm runtime needs"
+    echo "about 3 GB (about 8 GB if you choose the full ROCm libraries later) - the rest is for your models and data."
 else
     echo "Disk size for the container. The base system with Docker and the NVIDIA libraries needs"
     echo "about 2 GB - the rest is for your models and data."
@@ -357,16 +357,12 @@ echo ""
 echo -e "${GREEN}>>> Updating Proxmox VE Appliance list${NC}"
 pveam update
 
-# Template selection per GPU type:
-#  - NVIDIA: Ubuntu 26.04 LTS (CUDA repo ubuntu2604, Docker, container toolkit and Ollama all support it)
-#  - AMD:    Ubuntu 24.04 LTS (ROCm apt repos only exist for jammy/noble, no resolute yet)
-if [ "$GPU_TYPE" == "1" ]; then
-    LXC_TEMPLATE="ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
-    LXC_TEMPLATE_NAME="Ubuntu 24.04"
-else
-    LXC_TEMPLATE="ubuntu-26.04-standard_26.04-1_amd64.tar.zst"
-    LXC_TEMPLATE_NAME="Ubuntu 26.04"
-fi
+# Template: Ubuntu 26.04 LTS for both GPU types.
+#  - NVIDIA: CUDA repo ubuntu2604, Docker, container toolkit and Ollama all support it
+#  - AMD:    ROCm 7.14+ (built with TheRock) from repo.amd.com supports 26.04; the in-container
+#            script still handles 24.04 containers with the classic repo.radeon.com packages
+LXC_TEMPLATE="ubuntu-26.04-standard_26.04-1_amd64.tar.zst"
+LXC_TEMPLATE_NAME="Ubuntu 26.04"
 
 echo -e "${GREEN}>>> Downloading ${LXC_TEMPLATE_NAME} LXC template to local storage${NC}"
 pveam download local "$LXC_TEMPLATE" 2>/dev/null || echo "Template already exists"

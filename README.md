@@ -118,7 +118,7 @@ This interactive script will:
 3. Ask for hostname/IP, container resources (cores, RAM, swap), storage and disk size (shows free space)
 4. Optionally mount a shared model directory from the host (default `/opt/llm-models`, created with `1777`
    so several containers can use the same models and the container disk stays small)
-5. Create an Ubuntu LXC container with GPU passthrough (26.04 for NVIDIA, 24.04 for AMD - ROCm has no 26.04 repos yet)
+5. Create an Ubuntu 26.04 LXC container with GPU passthrough (NVIDIA: CUDA repo; AMD: ROCm 7.14+ from repo.amd.com, per-GPU packages)
 6. Mount the scripts directory at `/root/proxmox-setup-scripts` inside the container
 7. Enable SSH access (default password: `testing`)
 8. **Ask if you want to automatically install Docker and GPU drivers**
@@ -159,7 +159,7 @@ docker run --rm --gpus all nvidia/cuda:13.0.1-base-ubuntu24.04 nvidia-smi
 
 **AMD:**
 ```bash
-docker run --rm --name rcom-smi --device /dev/kfd --device /dev/dri -e HSA_OVERRIDE_GFX_VERSION=11.5.1 -e HSA_ENABLE_SDMA=0 --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --ipc=host rocm/rocm-terminal bash -c "rocm-smi --showmemuse --showuse --showmeminfo all --showhw --showproductname && rocminfo | grep -i -A5 'Agent [0-9]'"
+docker run --rm --name rcom-smi --device /dev/kfd --device /dev/dri -e HSA_OVERRIDE_GFX_VERSION=11.5.1 -e HSA_ENABLE_SDMA=0 --group-add video --group-add "$(getent group render | cut -d: -f3)" --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --ipc=host rocm/rocm-terminal bash -c "rocm-smi --showmemuse --showuse --showmeminfo all --showhw --showproductname && rocminfo | grep -i -A5 'Agent [0-9]'"
 ```
 
 ---
@@ -302,7 +302,7 @@ Enter your choice [all]:
 | Script | Description | GPU Type |
 |--------|-------------|----------|
 | `install-docker-and-nvidia-drivers-in-lxc.sh` | Installs Docker, NVIDIA libraries, and NVIDIA Container Toolkit | NVIDIA |
-| `install-docker-and-amd-drivers-in-lxc.sh` | Installs Docker and AMD ROCm libraries | AMD |
+| `install-docker-and-amd-drivers-in-lxc.sh` | Installs Docker and the AMD ROCm runtime (ROCm 7.14+ from repo.amd.com, per-GPU packages; runtime only by default, full libraries optional) | AMD |
 
 **Note:** These scripts are automatically available at `/root/proxmox-setup-scripts/lxc/` inside containers created with script 031.
 
