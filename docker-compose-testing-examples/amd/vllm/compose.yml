@@ -13,29 +13,31 @@
 #
 # Start it with the gid of the "render" group of this container (owns /dev/kfd and /dev/dri/renderD*;
 # the number differs between containers, that is why it is passed in):
-#   RENDER_GID=$(getent group render | cut -d: -f3) docker compose up -d
+#   RENDER_GID=$(getent group render | cut -d: -f3) bash -c "docker compose up -d && docker compose logs -f"
 #
-#   VLLM_MODEL / VLLM_TOKENIZER   Pick one of the two prepared options below (comment one in, one out):
+#   MODEL / GGUF_BASE_MODEL     Pick one of the two prepared options below (comment one in, one out):
 #     Option 1 (default): Qwen3 4B Thinking as Q4_K_M GGUF from unsloth - about 2.5 GB of GPU memory, fits
-#                         any GPU. GGUF models are given as "repo:QUANT" and need VLLM_TOKENIZER pointing to
-#                         the original model. Note: vLLM's GGUF support is newer than its safetensors path
-#                         and less exercised on ROCm - if it fails to start, use option 2.
+#                         any GPU. GGUF models are given as "repo:QUANT" and need GGUF_BASE_MODEL pointing to
+#                         the original (unquantized) model - vLLM takes the tokenizer and config.json from
+#                         there. Note: vLLM's GGUF support is newer than its safetensors path and less
+#                         exercised on ROCm - if it fails to start, use option 2.
 #     Option 2:           the same model as full bf16 safetensors - about 8 GB for the weights plus KV cache,
 #                         so plan ~10-12 GB of GPU memory. Standard vLLM path, best compatibility and speed.
 #                         For other models: weights ~2 bytes x parameters in bf16 (7B ~14 GB), a Q4 GGUF
 #                         ~0.6 bytes x parameters, plus room for the KV cache. Check what your GPU has with
 #                         "amd-smi metric" or "rocm-smi --showmeminfo vram" (on APUs that is the memory
 #                         reserved for the iGPU by script 002 / the BIOS UMA setting).
-#   VLLM_MAX_MODEL_LEN            Context length in tokens. Lower it if vLLM says the KV cache does not fit.
-#   VLLM_GPU_MEMORY_UTILIZATION   Share of GPU memory vLLM may use (0.0-1.0). 0.85 leaves headroom for
-#                                 other GPU users; on a dedicated GPU 0.95 is fine.
-#   HF_TOKEN                      Only needed for gated models (Llama, Gemma, ...): https://huggingface.co/settings/tokens
+#   MAX_MODEL_LEN               Context length in tokens. Lower it if vLLM says the KV cache does not fit.
+#   GPU_MEMORY_UTILIZATION      Share of GPU memory vLLM may use (0.0-1.0). 0.85 leaves headroom for
+#                               other GPU users; on a dedicated GPU 0.95 is fine.
+#   HF_TOKEN                    Only needed for gated models (Llama, Gemma, ...): https://huggingface.co/settings/tokens
+#   (the names have no VLLM_ prefix on purpose - vLLM warns about every unknown VLLM_* variable)
 #
 # Models are downloaded into /opt/llm-models/huggingface - the shared model directory that scripts
 # 031/032 mount from the Proxmox host (so several containers share the same downloads).
 #
 # API (OpenAI compatible) after start:  curl http://localhost:8000/v1/models
-# Logs:                                  docker logs -f vllm-rocm
+# Logs:                                  docker compose logs -f
 services:
     vllm-rocm:
         container_name: vllm-rocm
@@ -50,13 +52,13 @@ services:
             - HF_HOME=/opt/llm-models/huggingface
             - HF_TOKEN=
             # Option 1: Q4_K_M GGUF (~2.5 GB GPU memory)
-            - VLLM_MODEL=unsloth/Qwen3-4B-Thinking-2507-GGUF:Q4_K_M
-            - VLLM_TOKENIZER=Qwen/Qwen3-4B-Thinking-2507
+            - MODEL=unsloth/Qwen3-4B-Thinking-2507-GGUF:Q4_K_M
+            - GGUF_BASE_MODEL=Qwen/Qwen3-4B-Thinking-2507
             # Option 2: full bf16 safetensors (~10-12 GB GPU memory) - comment option 1 out and these two in
-            #- VLLM_MODEL=Qwen/Qwen3-4B-Thinking-2507
-            #- VLLM_TOKENIZER=
-            - VLLM_MAX_MODEL_LEN=8192
-            - VLLM_GPU_MEMORY_UTILIZATION=0.85
+            #- MODEL=Qwen/Qwen3-4B-Thinking-2507
+            #- GGUF_BASE_MODEL=
+            - MAX_MODEL_LEN=8192
+            - GPU_MEMORY_UTILIZATION=0.85
         group_add:
             - video
             - "${RENDER_GID:-993}"   # gid of the "render" group inside this LXC: getent group render
@@ -69,8 +71,8 @@ services:
         volumes:
             - /opt/llm-models:/opt/llm-models
         command: >-
-            sh -c 'vllm serve "$$VLLM_MODEL"
-            $${VLLM_TOKENIZER:+--tokenizer "$$VLLM_TOKENIZER"}
+            sh -c 'vllm serve "$$MODEL"
+            $${GGUF_BASE_MODEL:+--tokenizer "$$GGUF_BASE_MODEL" --hf-config-path "$$GGUF_BASE_MODEL"}
             --host 0.0.0.0 --port 8000
-            --max-model-len "$$VLLM_MAX_MODEL_LEN"
-            --gpu-memory-utilization "$$VLLM_GPU_MEMORY_UTILIZATION"'
+            --max-model-len "$$MAX_MODEL_LEN"
+            --gpu-memory-utilization "$$GPU_MEMORY_UTILIZATION"'

@@ -332,8 +332,8 @@ before editing it:
 ```bash
 cp -r /root/proxmox-setup-scripts/docker-compose-testing-examples/amd/vllm /opt/vllm && cd /opt/vllm
 nano compose.yml              # pick model option 1/2, adjust memory settings if needed
-RENDER_GID=$(getent group render | cut -d: -f3) docker compose up -d
-docker logs -f vllm-rocm      # first start downloads the model into /opt/llm-models/huggingface
+RENDER_GID=$(getent group render | cut -d: -f3) bash -c "docker compose up -d && docker compose logs -f"
+                              # first start downloads the image and the model (into /opt/llm-models/huggingface)
 curl http://localhost:8000/v1/models
 ```
 
