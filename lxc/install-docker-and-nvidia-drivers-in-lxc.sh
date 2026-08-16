@@ -155,11 +155,11 @@ echo -e "${GREEN}Installing ${NV_PKGS[*]} version ${YELLOW}$NV_VERSION${NC}"
 # (the NVIDIA container toolkit packages have their own versioning and are left alone)
 if dpkg -l 2>/dev/null | awk '/^ii/ && ($2 ~ /^(lib)?nvidia-/) && ($2 !~ /container/) {print $3}' | grep -qv "^${HOST_DRIVER_VERSION}"; then
     echo -e "${YELLOW}Removing NVIDIA packages that do not match the host driver version...${NC}"
-    apt-get purge -y 'nvidia-driver*' 'nvidia-dkms*' 'nvidia-kernel*' 'nvidia-utils*' 'nvidia-compute-utils*' \
+    apt purge -y 'nvidia-driver*' 'nvidia-dkms*' 'nvidia-kernel*' 'nvidia-utils*' 'nvidia-compute-utils*' \
         'nvidia-firmware*' 'nvidia-settings' 'nvidia-prime' 'nvidia-persistenced' 'nvidia-modprobe' 'xserver-xorg-video-nvidia*' \
         'libnvidia-compute*' 'libnvidia-cfg1*' 'libnvidia-gl*' 'libnvidia-decode*' 'libnvidia-encode*' 'libnvidia-extra*' \
         'libnvidia-fbc1*' 'libnvidia-common*' 'libnvidia-gpucomp*' 'libnvidia-egl*' 2>/dev/null || true
-    apt-get autoremove -y --purge
+    apt autoremove -y --purge
 fi
 
 NV_INSTALL=()
@@ -167,7 +167,7 @@ for pkg in "${NV_PKGS[@]}"; do NV_INSTALL+=("${pkg}=${NV_VERSION}"); done
 for pkg in "${NV_OPT_PKGS[@]}"; do
     apt-cache madison "$pkg" | awk '{print $3}' | grep -qx "$NV_VERSION" && NV_INSTALL+=("${pkg}=${NV_VERSION}")
 done
-apt-get install -y --no-install-recommends "${NV_INSTALL[@]}"
+apt install -y --no-install-recommends "${NV_INSTALL[@]}"
 
 # Hold the packages so a later 'apt upgrade' inside the container cannot drift away from the host driver
 apt-mark hold "${NV_PKGS[@]}" "${NV_OPT_PKGS[@]}" 2>/dev/null || true

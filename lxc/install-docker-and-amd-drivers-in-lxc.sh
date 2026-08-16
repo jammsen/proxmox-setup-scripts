@@ -190,17 +190,22 @@ echo -e "${GREEN}==========================================${NC}"
 echo ""
 echo -e "${GREEN}>>> Verifying AMD ROCm installation with Docker...${NC}"
 echo ""
-echo -e "${YELLOW}Test 1: ROCM Info and SMI test${NC}"
-echo -e "${YELLOW}Image: rocm/rocm:5.4.3-ubuntu22.04 (~1GB)${NC}"
-echo -e "${YELLOW}Command: docker run --rm --name rcom-smi --device /dev/kfd --device /dev/dri -e HSA_OVERRIDE_GFX_VERSION=11.5.1 -e HSA_ENABLE_SDMA=0 --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --ipc=host rocm/rocm-terminal bash -c \"rocm-smi --showmemuse --showuse --showmeminfo all --showhw --showproductname && rocminfo | grep -i -A5 'Agent [0-9]'\"${NC}"
+# The rocm/rocm-terminal image runs as a non-root user, so it must be a member of the groups that
+# own /dev/kfd and /dev/dri/renderD* inside this container (render and video; numeric gids because
+# the image may not know these group names). Required in unprivileged containers (script 032).
+RENDER_GID=$(getent group render | cut -d: -f3)
+VIDEO_GID=$(getent group video | cut -d: -f3)
+ROCM_TEST_CMD="docker run --rm --name rocm-smi-test --device /dev/kfd --device /dev/dri -e HSA_OVERRIDE_GFX_VERSION=11.5.1 -e HSA_ENABLE_SDMA=0 --group-add ${VIDEO_GID:-44} --group-add ${RENDER_GID:-993} --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --ipc=host rocm/rocm-terminal bash -c \"rocm-smi --showmemuse --showuse --showmeminfo all --showhw --showproductname && rocminfo | grep -i -A5 'Agent [0-9]'\""
+
+echo -e "${YELLOW}Test 1: ROCm Info and SMI test${NC}"
+echo -e "${YELLOW}Image: rocm/rocm-terminal (~1GB)${NC}"
+echo -e "${YELLOW}Command: ${ROCM_TEST_CMD}${NC}"
 echo ""
 read -r -p "Run Test 1? This will download ~1GB. [Y/n]: " RUN_TEST1
 RUN_TEST1=${RUN_TEST1:-Y}
 
 if [[ "$RUN_TEST1" =~ ^[Yy]$ ]]; then
-    docker run --rm --name rcom-smi --device /dev/kfd --device /dev/dri -e HSA_OVERRIDE_GFX_VERSION=11.5.1 -e HSA_ENABLE_SDMA=0 --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --ipc=host rocm/rocm-terminal bash -c "rocm-smi --showmemuse --showuse --showmeminfo all --showhw --showproductname && rocminfo | grep -i -A5 'Agent [0-9]'"
-    
-    if [ $? -eq 0 ]; then
+    if eval "$ROCM_TEST_CMD"; then
         echo ""
         echo -e "${GREEN}✓ Test 1 passed!${NC}"
         echo ""
@@ -213,11 +218,13 @@ if [[ "$RUN_TEST1" =~ ^[Yy]$ ]]; then
     else
         echo ""
         echo -e "${RED}✗ AMD ROCm test failed! ✗${NC}"
+        echo "Check that /dev/kfd and /dev/dri/renderD* are accessible (ls -la /dev/kfd /dev/dri) and"
+        echo "that the container user is in the owning groups (this test adds gids ${VIDEO_GID:-44} and ${RENDER_GID:-993})."
         echo ""
     fi
 else
     echo ""
     echo -e "${YELLOW}Tests skipped. You can manually test later with:${NC}"
-    echo "  docker run --rm --name rcom-smi --device /dev/kfd --device /dev/dri -e HSA_OVERRIDE_GFX_VERSION=11.5.1 -e HSA_ENABLE_SDMA=0 --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --ipc=host rocm/rocm-terminal bash -c \"rocm-smi --showmemuse --showuse --showmeminfo all --showhw --showproductname && rocminfo | grep -i -A5 'Agent [0-9]'\""
+    echo "  ${ROCM_TEST_CMD}"
     echo ""
 fi
