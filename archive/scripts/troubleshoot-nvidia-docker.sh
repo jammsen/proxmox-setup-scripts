@@ -96,10 +96,10 @@ docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu24.04 nvidia-smi
 
 if [ $? -eq 0 ]; then
     echo ""
-    echo "✓✓✓ SUCCESS! GPU is working in Docker containers ✓✓✓"
+    echo "✓ SUCCESS! GPU is working in Docker containers ✓"
 else
     echo ""
-    echo "✗✗✗ FAILED! GPU is not working in Docker containers ✗✗✗"
+    echo "✗ FAILED! GPU is not working in Docker containers ✗"
     echo ""
     echo "Common fixes:"
     echo "1. Ensure no-cgroups = true in /etc/nvidia-container-runtime/config.toml"

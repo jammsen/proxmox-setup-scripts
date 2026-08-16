@@ -311,7 +311,7 @@ if [[ "$RUN_TEST1" =~ ^[Yy]$ ]]; then
                     echo ""
                     echo -e "${GREEN}✓ Test 2 passed!${NC}"
                     echo ""
-                    echo -e "${GREEN}✓✓✓ SUCCESS! NVIDIA Container Toolkit is working correctly! ✓✓✓${NC}"
+                    echo -e "${GREEN}✓ SUCCESS! NVIDIA Container Toolkit is working correctly! ✓${NC}"
                     echo ""
                     echo -e "${GREEN}==========================================${NC}"
                     echo -e "${GREEN}Installation Complete!${NC}"
@@ -353,7 +353,7 @@ if [[ "$RUN_TEST1" =~ ^[Yy]$ ]]; then
         echo ""
     else
         echo ""
-        echo -e "${RED}✗✗✗ NVIDIA Container Toolkit test failed! ✗✗✗${NC}"
+        echo -e "${RED}✗ NVIDIA Container Toolkit test failed! ✗${NC}"
         echo ""
         echo -e "${YELLOW}Troubleshooting steps:${NC}"
         echo "1. Verify GPU devices are accessible: ls -la /dev/nvidia* /dev/dri/"

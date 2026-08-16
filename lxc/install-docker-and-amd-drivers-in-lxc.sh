@@ -212,7 +212,7 @@ if [[ "$RUN_TEST1" =~ ^[Yy]$ ]]; then
         echo ""
     else
         echo ""
-        echo -e "${RED}✗✗✗ AMD ROCm test failed! ✗✗✗${NC}"
+        echo -e "${RED}✗ AMD ROCm test failed! ✗${NC}"
         echo ""
     fi
 else

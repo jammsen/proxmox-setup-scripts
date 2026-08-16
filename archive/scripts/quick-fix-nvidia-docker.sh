@@ -42,7 +42,7 @@ docker run --rm --gpus all nvidia/cuda:13.0.1-base-ubuntu24.04 nvidia-smi
 
 if [ $? -eq 0 ]; then
     echo ""
-    echo "✓✓✓ SUCCESS! GPU is now working in Docker! ✓✓✓"
+    echo "✓ SUCCESS! GPU is now working in Docker! ✓"
 else
     echo ""
     echo "✗ Still failing. Additional troubleshooting needed."
