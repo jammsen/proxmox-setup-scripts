@@ -204,10 +204,37 @@ GW_TEMPLATE="10.0.0.1"
 read -r -p "Enter gateway [$GW_TEMPLATE]: " GATEWAY
 GATEWAY=${GATEWAY:-$GW_TEMPLATE}
 
-# Container resources (cores/RAM/swap are fixed defaults, disk size and storage are asked below)
-CT_CORES=8
-CT_MEMORY_MB=8192
-CT_SWAP_MB=4096
+# Container resources: show what the host has, then ask (defaults: 8 cores, 8 GB RAM, 4 GB swap)
+HOST_CORES=$(nproc 2>/dev/null || echo "?")
+HOST_MEM_GB=$(awk '/MemTotal/ {printf "%d", $2/1024/1024}' /proc/meminfo 2>/dev/null || echo "?")
+echo ""
+echo "Container resources (this host has ${HOST_CORES} CPU threads and ${HOST_MEM_GB} GB RAM):"
+read -r -p "Enter number of CPU cores for the container [8]: " CT_CORES
+CT_CORES=${CT_CORES:-8}
+if ! [[ "$CT_CORES" =~ ^[0-9]+$ ]] || [ "$CT_CORES" -lt 1 ]; then
+    echo -e "${RED}Error: cores must be a whole number (at least 1)${NC}"
+    exit 1
+fi
+if [[ "$HOST_CORES" =~ ^[0-9]+$ ]] && [ "$CT_CORES" -gt "$HOST_CORES" ]; then
+    echo -e "${YELLOW}Note: ${CT_CORES} cores is more than this host has (${HOST_CORES}); the container will simply share what exists.${NC}"
+fi
+read -r -p "Enter RAM for the container in GB [8]: " CT_MEMORY_GB
+CT_MEMORY_GB=${CT_MEMORY_GB:-8}
+if ! [[ "$CT_MEMORY_GB" =~ ^[0-9]+$ ]] || [ "$CT_MEMORY_GB" -lt 1 ]; then
+    echo -e "${RED}Error: RAM must be a whole number of GB (at least 1)${NC}"
+    exit 1
+fi
+if [[ "$HOST_MEM_GB" =~ ^[0-9]+$ ]] && [ "$CT_MEMORY_GB" -gt "$HOST_MEM_GB" ]; then
+    echo -e "${YELLOW}Note: ${CT_MEMORY_GB} GB is more than this host has (${HOST_MEM_GB} GB).${NC}"
+fi
+read -r -p "Enter swap for the container in GB [4]: " CT_SWAP_GB
+CT_SWAP_GB=${CT_SWAP_GB:-4}
+if ! [[ "$CT_SWAP_GB" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}Error: swap must be a whole number of GB (0 for none)${NC}"
+    exit 1
+fi
+CT_MEMORY_MB=$((CT_MEMORY_GB*1024))
+CT_SWAP_MB=$((CT_SWAP_GB*1024))
 
 # Storage for the container disk: default to local-zfs if it exists, otherwise the first
 # storage that can hold container root disks
