@@ -19,24 +19,33 @@
 #     Option 1 (default): Qwen3 4B Thinking as Q4_K_M GGUF from unsloth - about 2.5 GB of GPU memory, fits
 #                         any GPU. GGUF models are given as "repo:QUANT" and need GGUF_BASE_MODEL pointing to
 #                         the original (unquantized) model - vLLM takes the tokenizer and config.json from
-#                         there. Note: vLLM's GGUF support is newer than its safetensors path and less
+#                         there (and runs in float16, GGUF weights do not support bfloat16). Note: vLLM's GGUF support is newer than its safetensors path and less
 #                         exercised on ROCm - if it fails to start, use option 2.
 #     Option 2:           the same model as full bf16 safetensors - about 8 GB for the weights plus KV cache,
 #                         so plan ~10-12 GB of GPU memory. Standard vLLM path, best compatibility and speed.
 #                         For other models: weights ~2 bytes x parameters in bf16 (7B ~14 GB), a Q4 GGUF
-#                         ~0.6 bytes x parameters, plus room for the KV cache. Check what your GPU has with
-#                         "amd-smi metric" or "rocm-smi --showmeminfo vram" (on APUs that is the memory
-#                         reserved for the iGPU by script 002 / the BIOS UMA setting).
+#                         ~0.6 bytes x parameters, plus the KV cache (KV_CACHE_GB below).
 #   MAX_MODEL_LEN               Context length in tokens. Lower it if vLLM says the KV cache does not fit.
-#   GPU_MEMORY_UTILIZATION      Share of GPU memory vLLM may use (0.0-1.0). 0.85 leaves headroom for
-#                               other GPU users; on a dedicated GPU 0.95 is fine.
+#   KV_CACHE_GB                 Memory for the KV cache in GB - an absolute amount, on purpose. vLLM's usual
+#                               knob (--gpu-memory-utilization, a percentage) is meant for a dedicated GPU. On
+#                               a Ryzen AI APU the "GPU memory" is system RAM shared with everything else on
+#                               the Proxmox host (GTT, 96 GB after script 002), so a percentage would let vLLM
+#                               grab tens of GB of host RAM and starve the other containers and VMs. 4 GB is
+#                               plenty for a 4B model with 8k context (~70 requests in parallel); raise it on a
+#                               dedicated GPU with free VRAM.
 #   HF_TOKEN                    Only needed for gated models (Llama, Gemma, ...): https://huggingface.co/settings/tokens
 #   (the names have no VLLM_ prefix on purpose - vLLM warns about every unknown VLLM_* variable)
 #
 # Models are downloaded into /opt/llm-models/huggingface - the shared model directory that scripts
 # 031/032 mount from the Proxmox host (so several containers share the same downloads).
 #
+# The first start takes a while: after "Model loading took ..." vLLM compiles its kernels and captures
+# CUDA graphs for the GPU (several minutes on an APU, no log output meanwhile - "amd-smi monitor -p -t -u -m -w 1"
+# in a second shell shows the GPU at 100%). It is done when the log says "Application startup complete".
+#
 # API (OpenAI compatible) after start:  curl http://localhost:8000/v1/models
+#   curl http://localhost:8000/v1/chat/completions -H 'Content-Type: application/json' \
+#     -d '{"model":"unsloth/Qwen3-4B-Thinking-2507-GGUF:Q4_K_M","messages":[{"role":"user","content":"Say hello in one sentence."}],"max_tokens":200}'
 # Logs:                                  docker compose logs -f
 services:
     vllm-rocm:
@@ -58,7 +67,7 @@ services:
             #- MODEL=Qwen/Qwen3-4B-Thinking-2507
             #- GGUF_BASE_MODEL=
             - MAX_MODEL_LEN=8192
-            - GPU_MEMORY_UTILIZATION=0.85
+            - KV_CACHE_GB=4
         group_add:
             - video
             - "${RENDER_GID:-993}"   # gid of the "render" group inside this LXC: getent group render
@@ -72,7 +81,7 @@ services:
             - /opt/llm-models:/opt/llm-models
         command: >-
             sh -c 'vllm serve "$$MODEL"
-            $${GGUF_BASE_MODEL:+--tokenizer "$$GGUF_BASE_MODEL" --hf-config-path "$$GGUF_BASE_MODEL"}
+            $${GGUF_BASE_MODEL:+--tokenizer "$$GGUF_BASE_MODEL" --hf-config-path "$$GGUF_BASE_MODEL" --dtype float16}
             --host 0.0.0.0 --port 8000
             --max-model-len "$$MAX_MODEL_LEN"
-            --gpu-memory-utilization "$$GPU_MEMORY_UTILIZATION"'
+            --kv-cache-memory-bytes "$$((KV_CACHE_GB * 1024 * 1024 * 1024))"'

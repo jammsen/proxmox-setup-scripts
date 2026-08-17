@@ -219,7 +219,7 @@ fi
 echo ""
 echo -e "${GREEN}Monitoring (the AMD equivalents of nvidia-smi):${NC}"
 echo "  rocm-smi                                 one-shot overview: temperature, power, clocks, fan, perf level, memory, load"
-echo "  amd-smi monitor -p -t -g -m -w 1         live view refreshed every second (power, temperature, gfx clock/util, memory)"
+echo "  amd-smi monitor -p -t -u -m -w 1         live view refreshed every second (power, temperature, gfx clock/util, memory)"
 echo "  amd-smi metric --power --clock           detailed power and clock (DPM) state"
 echo "  nvtop                                    interactive graphs"
 echo "  Note: on APUs like the Radeon 890M some power values can be N/A - the GPU shares the SoC power rail with the CPU."
